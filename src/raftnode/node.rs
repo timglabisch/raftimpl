@@ -96,26 +96,12 @@ impl RaftNode {
         let server = listener.incoming()
             .map_err(|e| eprintln!("accept failed = {:?}", e))
             .for_each(move |sock| {
-                // Split up the reading and writing parts of the
-                // socket.
-                let (reader, writer) = sock.split();
-
-                // A future that echos the data and returns how
-                // many bytes were copied...
-                let bytes_copied = copy(reader, writer);
-
-
-                let peer = Peer::new(node_id, ());
-
-                // ... after which we'll print what happened.
-                let handle_conn = bytes_copied.map(|amt| {
-                    println!("wrote {:?} bytes", amt)
-                }).map_err(|err| {
-                    eprintln!("IO error {:?}", err)
-                });
-
+                
                 // Spawn the future as a concurrent task.
-                tokio::spawn(handle_conn)
+                tokio::spawn(Peer::new(
+                    node_id,
+                    sock
+                ))
             });
 
         self.tcp_server = Some(Box::new(server));
