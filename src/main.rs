@@ -1,7 +1,11 @@
+#![allow(dead_code)]
 extern crate raft;
 
 use std::thread;
 use std::time::Duration;
+use raftnode::node::RaftNode;
+
+mod raftnode;
 
 fn main() {
     println!("Hello, world!");
@@ -10,8 +14,10 @@ fn main() {
     let mut handles = vec![];
 
     for i in 0..4 {
-        let node_id = i;
         handles.push(thread::spawn(move || {
+
+            let _ = RaftNode::new(i);
+
             loop {
                 println!("hello from node {}", i);
                 thread::sleep(Duration::from_secs(1));
@@ -20,7 +26,7 @@ fn main() {
     }
 
     for h in handles {
-        h.join();
+        h.join().expect("join failed");
     }
 
 
