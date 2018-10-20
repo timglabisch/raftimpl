@@ -1,8 +1,12 @@
 #![allow(dead_code)]
+#![allow(deprecated)]
 extern crate raft;
 extern crate tokio;
 #[macro_use]
 extern crate futures;
+extern crate bytes;
+extern crate byteorder;
+extern crate protobuf;
 
 use raftnode::node::RaftNode;
 use futures::select_all;

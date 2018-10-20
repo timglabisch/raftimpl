@@ -7,3 +7,6 @@ authors = ["timglabisch <tim@ainfach.de>"]
 raft = "0.4.*"
 tokio = "0.1.*"
 futures = "0.1.*"
+bytes = "*"
+byteorder = "1"
+protobuf = "2.0.4"
