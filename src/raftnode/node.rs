@@ -96,7 +96,7 @@ impl RaftNode {
         let server = listener.incoming()
             .map_err(|e| eprintln!("accept failed = {:?}", e))
             .for_each(move |sock| {
-                
+
                 // Spawn the future as a concurrent task.
                 tokio::spawn(Peer::new(
                     node_id,
