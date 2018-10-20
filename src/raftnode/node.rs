@@ -8,30 +8,33 @@ use futures::prelude::*;
 use tokio::io::copy;
 use tokio::io::AsyncRead;
 use tokio;
+use raftnode::peer::Peer;
 
 //use futures::try_ready;
 
 
 pub struct RaftNode {
+    peer_counter: u64,
+    // every new connection (aka. peer) will get a new id.
     config: Config,
     raw_node: RawNode<MemStorage>,
-    tcp_server: Box<Future<Item=(), Error=()> + Send>
+    tcp_server: Option<Box<Future<Item=(), Error=()> + Send>>,
 }
 
 impl Future for RaftNode {
-
     type Item = ();
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
-        self.tcp_server.poll()
+        match &mut self.tcp_server {
+            Some(ref mut t) => t.poll(),
+            None => panic!("cant poll when the tcp server isnt started. you need to call listen() before")
+        }
     }
 }
 
 impl RaftNode {
-
-    pub fn new(node_id : u64) -> Self {
-
+    pub fn new(node_id: u64) -> Self {
         let storage = MemStorage::new();
 
         let config = Config {
@@ -66,26 +69,33 @@ impl RaftNode {
         let node_id = config.id;
 
         RaftNode {
+            peer_counter: 0,
             config,
             raw_node,
-            tcp_server: Self::create_tcp_server(node_id)
+            tcp_server: None,
         }
     }
 
-    fn create_tcp_server(node_id: u64) -> Box<Future<Item=(), Error=()> + Send> {
+    pub fn listen(&mut self) -> () {
 
-        let port = format!("127.0.0.1:200{}", node_id);
+        if self.tcp_server.is_some() {
+            panic!("you cant call listen twice");
+        }
 
-        println!("runing node {} on port {}", node_id, port);
+        let port = format!("127.0.0.1:200{}", self.config.id);
+
+        println!("runing node {} on port {}", self.config.id, port);
 
         let addr = port.parse().unwrap();
 
         let listener = TcpListener::bind(&addr)
             .expect("unable to bind TCP listener");
 
+        let node_id = self.config.id;
+
         let server = listener.incoming()
             .map_err(|e| eprintln!("accept failed = {:?}", e))
-            .for_each(|sock| {
+            .for_each(move |sock| {
                 // Split up the reading and writing parts of the
                 // socket.
                 let (reader, writer) = sock.split();
@@ -93,6 +103,9 @@ impl RaftNode {
                 // A future that echos the data and returns how
                 // many bytes were copied...
                 let bytes_copied = copy(reader, writer);
+
+
+                let peer = Peer::new(node_id, ());
 
                 // ... after which we'll print what happened.
                 let handle_conn = bytes_copied.map(|amt| {
@@ -105,7 +118,7 @@ impl RaftNode {
                 tokio::spawn(handle_conn)
             });
 
-        Box::new(server)
+        self.tcp_server = Some(Box::new(server));
     }
 
     pub fn send_propose(&mut self)
