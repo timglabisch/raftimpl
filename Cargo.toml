@@ -1,0 +1,7 @@
+[package]
+name = "raftimpl"
+version = "0.1.0"
+authors = ["timglabisch <tim@ainfach.de>"]
+
+[dependencies]
+raft = "0.4.*"
