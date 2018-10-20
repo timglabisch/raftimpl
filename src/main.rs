@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 extern crate raft;
 extern crate tokio;
+#[macro_use]
 extern crate futures;
 
 use raftnode::node::RaftNode;

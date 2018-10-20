@@ -9,10 +9,13 @@ use tokio::io::copy;
 use tokio::io::AsyncRead;
 use tokio;
 
+//use futures::try_ready;
+
 
 pub struct RaftNode {
     config: Config,
-    raw_node: RawNode<MemStorage>
+    raw_node: RawNode<MemStorage>,
+    tcp_server: Box<Future<Item=(), Error=()> + Send>
 }
 
 impl Future for RaftNode {
@@ -21,38 +24,12 @@ impl Future for RaftNode {
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
-
-        let addr = "127.0.0.1:12345".parse().unwrap();
-        let listener = TcpListener::bind(&addr)
-            .expect("unable to bind TCP listener");
-
-        let server = listener.incoming()
-            .map_err(|e| eprintln!("accept failed = {:?}", e))
-            .for_each(|sock| {
-                // Split up the reading and writing parts of the
-                // socket.
-                let (reader, writer) = sock.split();
-
-                // A future that echos the data and returns how
-                // many bytes were copied...
-                let bytes_copied = copy(reader, writer);
-
-                // ... after which we'll print what happened.
-                let handle_conn = bytes_copied.map(|amt| {
-                    println!("wrote {:?} bytes", amt)
-                }).map_err(|err| {
-                    eprintln!("IO error {:?}", err)
-                });
-
-                // Spawn the future as a concurrent task.
-                tokio::spawn(handle_conn)
-            });
-
-        unimplemented!()
+        self.tcp_server.poll()
     }
 }
 
 impl RaftNode {
+
     pub fn new(node_id : u64) -> Self {
 
         let storage = MemStorage::new();
@@ -86,11 +63,49 @@ impl RaftNode {
 
         let raw_node = RawNode::new(&config, storage, vec![]).unwrap();
 
+        let node_id = config.id;
 
         RaftNode {
             config,
-            raw_node
+            raw_node,
+            tcp_server: Self::create_tcp_server(node_id)
         }
+    }
+
+    fn create_tcp_server(node_id: u64) -> Box<Future<Item=(), Error=()> + Send> {
+
+        let port = format!("127.0.0.1:200{}", node_id);
+
+        println!("runing node {} on port {}", node_id, port);
+
+        let addr = port.parse().unwrap();
+
+        let listener = TcpListener::bind(&addr)
+            .expect("unable to bind TCP listener");
+
+        let server = listener.incoming()
+            .map_err(|e| eprintln!("accept failed = {:?}", e))
+            .for_each(|sock| {
+                // Split up the reading and writing parts of the
+                // socket.
+                let (reader, writer) = sock.split();
+
+                // A future that echos the data and returns how
+                // many bytes were copied...
+                let bytes_copied = copy(reader, writer);
+
+                // ... after which we'll print what happened.
+                let handle_conn = bytes_copied.map(|amt| {
+                    println!("wrote {:?} bytes", amt)
+                }).map_err(|err| {
+                    eprintln!("IO error {:?}", err)
+                });
+
+                // Spawn the future as a concurrent task.
+                tokio::spawn(handle_conn)
+            });
+
+        Box::new(server)
     }
 
     pub fn send_propose(&mut self)
