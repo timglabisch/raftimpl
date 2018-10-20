@@ -10,7 +10,7 @@ use futures::prelude::*;
 mod raftnode;
 
 fn main() {
-    tokio::run(
+    ::tokio::run(
         select_all(vec![
             RaftNode::new(1),
             RaftNode::new(2),
