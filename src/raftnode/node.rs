@@ -1,10 +1,22 @@
 use raft::storage::MemStorage;
 use raft::Config;
 use raft::RawNode;
+use futures::Future;
+use futures::Async;
 
 pub struct RaftNode {
     config: Config,
     raw_node: RawNode<MemStorage>
+}
+
+impl Future for RaftNode {
+
+    type Item = ();
+    type Error = ();
+
+    fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
+        unimplemented!()
+    }
 }
 
 impl RaftNode {
