@@ -9,20 +9,32 @@ use raftnode::protocol::ProtocolMessage;
 use raftnode::protocol::Protocol;
 use bytes::BytesMut;
 use bytes::BufMut;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::channel;
+use raftnode::node::RaftNodeHandle;
 
 pub struct Peer {
     id : u64,
+    raft_node_handle: RaftNodeHandle,
     connection_read : ReadHalf<TcpStream>,
     connection_write : WriteHalf<TcpStream>,
     read_buffer: BytesMut,
     tmp_read_buffer: [u8; 4096],
-    mailbox_incoming: Vec<ProtocolMessage>
+    mailbox_incoming: Vec<ProtocolMessage>,
+    channel_in_receiver: Receiver<PeerCommand>,
+    channel_in_sender: Sender<PeerCommand>,
 }
 
 impl Peer {
-    pub fn new(id : u64, connection : TcpStream) -> Self {
+    pub fn new(
+        id : u64,
+        raft_node_handle: RaftNodeHandle,
+        connection : TcpStream
+    ) -> Self {
 
         let (connection_read, connection_write) = connection.split();
+
+        let (channel_in_sender, channel_in_receiver) = channel::<PeerCommand>();
 
         Peer {
             id,
@@ -30,7 +42,16 @@ impl Peer {
             connection_write,
             read_buffer: BytesMut::new(),
             tmp_read_buffer: [0; 4096],
-            mailbox_incoming: vec![]
+            mailbox_incoming: vec![],
+            channel_in_receiver,
+            channel_in_sender,
+            raft_node_handle
+        }
+    }
+
+    pub fn handle(&self) -> PeerHandle {
+        PeerHandle {
+            sender: self.channel_in_sender.clone()
         }
     }
 }
@@ -81,5 +102,27 @@ impl Future for Peer {
         println!("client mailbox has {} items", self.mailbox_incoming.len());
 
         return Ok(Async::NotReady);
+    }
+}
+
+
+pub enum PeerCommand {
+
+}
+
+pub struct PeerHandle
+{
+    sender: Sender<PeerCommand>,
+}
+
+impl PeerHandle {
+    pub fn clone(&self) -> PeerHandle {
+        PeerHandle {
+            sender: self.sender.clone()
+        }
+    }
+
+    pub fn send(&self, command: PeerCommand) {
+        self.send(command);
     }
 }
