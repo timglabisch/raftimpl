@@ -12,36 +12,30 @@ use bytes::BufMut;
 use futures::sync::mpsc::{Receiver, Sender};
 use futures::sync::mpsc::channel;
 use raftnode::node::RaftNodeHandle;
+use raftnode::peer_stream::PeerStream;
+use futures::Stream;
 
 pub struct Peer {
     id : u64,
     raft_node_handle: RaftNodeHandle,
-    connection_read : ReadHalf<TcpStream>,
-    connection_write : WriteHalf<TcpStream>,
-    read_buffer: BytesMut,
-    tmp_read_buffer: [u8; 4096],
     mailbox_incoming: Vec<ProtocolMessage>,
     channel_in_receiver: Receiver<PeerCommand>,
     channel_in_sender: Sender<PeerCommand>,
+    peer_stream: PeerStream
 }
 
 impl Peer {
     pub fn new(
         id : u64,
         raft_node_handle: RaftNodeHandle,
-        connection : TcpStream
+        peer_stream : PeerStream
     ) -> Self {
-
-        let (connection_read, connection_write) = connection.split();
 
         let (channel_in_sender, channel_in_receiver) = channel::<PeerCommand>(100);
 
         Peer {
             id,
-            connection_read,
-            connection_write,
-            read_buffer: BytesMut::new(),
-            tmp_read_buffer: [0; 4096],
+            peer_stream,
             mailbox_incoming: vec![],
             channel_in_receiver,
             channel_in_sender,
@@ -63,16 +57,14 @@ impl Future for Peer {
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
 
         loop {
-            match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
+            match self.channel_in_receiver.poll() {
                 Ok(Async::NotReady) => {
                     println!("no command from node from peer {}", self.id);
+                    break;
                 },
                 Ok(Async::Ready(command)) => {
                     println!("got command {:?} from peer {}", command, self.id);
                 },
-                Err(ref e) if e.kind() == WouldBlock => {
-                    println!("got command would block {}", self.id);
-                }
                 Err(e) => {
                     println!("peer {} has an error, teardown.", self.id);
                     return Err(())
@@ -81,19 +73,15 @@ impl Future for Peer {
         }
 
         loop {
-            match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
+            match self.peer_stream.poll() {
                 Ok(Async::NotReady) => {
                     println!("read all from Peer {}", self.id);
+                    break;
                 },
-                Ok(Async::Ready(size)) => {
-
-                    println!("start to read {} bytes from Peer {}", size, self.id);
-
-                    self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
+                Ok(Async::Ready(message)) => {
+                    println!("read message from Peer {}", self.id);
+                    self.mailbox_incoming.push(message);
                 },
-                Err(ref e) if e.kind() == WouldBlock => {
-                    println!("read from peer {} would block", self.id);
-                }
                 Err(e) => {
                     println!("peer {} has an error, teardown.", self.id);
                     return Err(())
@@ -101,19 +89,6 @@ impl Future for Peer {
             }
         };
 
-        loop {
-            match Protocol::decode(&mut self.read_buffer) {
-                Err(_) => panic!("issue with decoding a package"),
-                Ok(Some(p)) => {
-                    println!("decoded package.");
-                    self.mailbox_incoming.push(p);
-                }
-                Ok(None) => {
-                    println!("could not decode package - bytes missing, so go on.");
-                    break;
-                }
-            }
-        }
 
         println!("client mailbox has {} items", self.mailbox_incoming.len());
 
@@ -121,7 +96,7 @@ impl Future for Peer {
     }
 }
 
-
+#[derive(Debug)]
 pub enum PeerCommand {
 
 }

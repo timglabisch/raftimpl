@@ -23,16 +23,3 @@ impl PeerBuilder {
     }
 
 }
-
-/*
-impl Future for PeerBuilder {
-
-    type Item = ();
-    type Error = ();
-
-    fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
-        self.tcp_stream.poll_read()
-    }
-
-}
-*/

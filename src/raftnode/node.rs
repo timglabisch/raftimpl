@@ -25,6 +25,7 @@ use raftnode::peer::PeerHandle;
 use std::collections::HashMap;
 use futures::Sink;
 use tokio::net::TcpStream;
+use raftnode::peer_stream::PeerStream;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -131,7 +132,7 @@ impl RaftNode {
                 let peer = Peer::new(
                     peer_id,
                     raft_node_handle.clone(),
-                    sock,
+                    PeerStream::new(sock),
                 );
 
                 {
