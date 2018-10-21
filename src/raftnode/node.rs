@@ -16,11 +16,13 @@ use std::time::Instant;
 use tokio::io::ErrorKind::WouldBlock;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::mpsc::channel;
-//use futures::try_ready;
-
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::ops::Deref;
 
 pub struct RaftNode {
-    peer_counter: u64,
+    peer_counter: Arc<AtomicUsize>,
     // every new connection (aka. peer) will get a new id.
     config: Config,
     raw_node: RawNode<MemStorage>,
@@ -76,7 +78,7 @@ impl RaftNode {
 
 
         RaftNode {
-            peer_counter: 0,
+            peer_counter: Arc::new(AtomicUsize::new(0)),
             config,
             raw_node,
             tcp_server: None,
@@ -101,17 +103,20 @@ impl RaftNode {
         let listener = TcpListener::bind(&addr)
             .expect("unable to bind TCP listener");
 
-        let node_id = self.config.id;
-
         let raft_node_handle = self.handle();
+
+
+        let peer_counter = self.peer_counter.clone();
 
         let server = listener.incoming()
             .map_err(|e| eprintln!("accept failed = {:?}", e))
             .for_each(move |sock| {
 
+                let peer_id = peer_counter.deref().fetch_add(1, Ordering::SeqCst);
+
                 // Spawn the future as a concurrent task.
                 tokio::spawn(Peer::new(
-                    node_id,
+                    peer_id as u64,
                     raft_node_handle.clone(),
                     sock,
                 ))
