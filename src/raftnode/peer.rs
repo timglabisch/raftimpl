@@ -35,11 +35,14 @@ impl Future for Peer {
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
         match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
-            Ok(t) => {
+            Ok(Async::NotReady) => {
 
-                println!("we got something ! :)");
+                println!("we got something, and there is more! :)");
 
                 Ok(Async::NotReady)
+            },
+            Ok(Async::Ready(_)) => {
+                panic!("ok no...");
             },
             Err(ref e) if e.kind() == WouldBlock => {
                 Ok(Async::NotReady)

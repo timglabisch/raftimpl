@@ -9,6 +9,11 @@ use tokio::io::copy;
 use tokio::io::AsyncRead;
 use tokio;
 use raftnode::peer::Peer;
+use tokio::timer::Interval;
+use std::time::Duration;
+use tokio::prelude::StreamExt;
+use std::time::Instant;
+use tokio::io::ErrorKind::WouldBlock;
 
 //use futures::try_ready;
 
@@ -19,6 +24,7 @@ pub struct RaftNode {
     config: Config,
     raw_node: RawNode<MemStorage>,
     tcp_server: Option<Box<Future<Item=(), Error=()> + Send>>,
+    interval: Interval
 }
 
 impl Future for RaftNode {
@@ -26,10 +32,44 @@ impl Future for RaftNode {
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
-        match &mut self.tcp_server {
-            Some(ref mut t) => t.poll(),
-            None => panic!("cant poll when the tcp server isnt started. you need to call listen() before")
+
+        self.listen();
+
+        println!("poll!");
+
+        // the loop is required because we need to make sure that the interval returns not ready,
+        // because we need to ensure that the interval returns Async::NotReady to that this future will be
+        // woken up ...
+        loop {
+            match self.interval.poll() {
+                Ok(Async::Ready(_)) => {
+                    println!("node interval {} is ready ...", &self.config.id);
+                },
+                Ok(Async::NotReady) => {
+                    println!("node interval {} is not ready ...", &self.config.id);
+                    break;
+                },
+                Err(e) => {
+                    println!("problem with peer timer, teardown.");
+                    return Err(())
+                },
+            };
         }
+
+        match &mut self.tcp_server {
+            Some(ref mut t) => match t.poll() {
+                Ok(t) => {
+                    println!("tcp server {} poll ok.", &self.config.id);
+                },
+                Err(e) => {
+                    println!("error on polling tcp server {}, teardown.", &self.config.id);
+                    return Err(())
+                },
+            },
+            None => panic!("cant poll when the tcp server isnt started. you need to call listen() before")
+        };
+
+        Ok(Async::NotReady) // look at the timer loop, we loop until it's not ready.
     }
 }
 
@@ -73,13 +113,14 @@ impl RaftNode {
             config,
             raw_node,
             tcp_server: None,
+            interval: Interval::new_interval(Duration::from_millis(1000))
         }
     }
 
     pub fn listen(&mut self) -> () {
 
         if self.tcp_server.is_some() {
-            panic!("you cant call listen twice");
+            return ();
         }
 
         let port = format!("127.0.0.1:200{}", self.config.id);
