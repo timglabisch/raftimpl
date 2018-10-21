@@ -25,11 +25,11 @@ pub struct RawProtocolMessage {
     pub body : BytesMut
 }
 
-struct Protocol;
+pub struct Protocol;
 
 impl Protocol {
 
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<ProtocolMessage>, String> {
+    pub fn decode(src: &mut BytesMut) -> Result<Option<ProtocolMessage>, String> {
 
         let len = src.len();
 
@@ -82,7 +82,7 @@ impl Protocol {
         }
     }
 
-    fn encode(&mut self, protocol_message: ProtocolMessage, dst_bytes: &mut BytesMut) -> Result<(), String> {
+    pub fn encode(protocol_message: ProtocolMessage, dst_bytes: &mut BytesMut) -> Result<(), String> {
 
         let body = match protocol_message {
             ProtocolMessage::Raft(m) => m.write_to_bytes().expect("could not get bytes for message"),
