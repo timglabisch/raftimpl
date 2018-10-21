@@ -24,6 +24,7 @@ use std::sync::RwLock;
 use raftnode::peer::PeerHandle;
 use std::collections::HashMap;
 use futures::Sink;
+use tokio::net::TcpStream;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -124,6 +125,7 @@ impl RaftNode {
             .map_err(|e| eprintln!("accept failed = {:?}", e))
             .for_each(move |sock| {
 
+                // die id ist hier nicht korrekt, die id muss vom client übermittelt werden.
                 let peer_id = peer_counter.deref().fetch_add(1, Ordering::SeqCst) as u64;
 
                 let peer = Peer::new(
@@ -164,6 +166,46 @@ impl RaftNode {
         self.tcp_server = Some(Box::new(server));
     }
 
+    pub fn maintain_peers(&mut self)
+    {
+        let possible_nodes = vec![
+            1,
+            2,
+            3,
+        ];
+
+        let peers = self.peers.write().expect("could not get peers lock");
+
+        for peer_id in possible_nodes.iter() {
+
+            // we dont try to connect to us.
+            if &self.config.id == peer_id {
+                continue;
+            }
+
+            if peers.get(peer_id).is_some() {
+                println!("peer {} already exists, no need to try to contact it.", peer_id);
+                continue;
+            }
+
+            let tcp = TcpStream::connect(&format!("127.0.0.1:200{}", peer_id).parse().expect("could not parse peer url."));
+
+
+            tokio::spawn(
+                tcp.and_then(|sock|{
+
+                println!("got socket ...");
+
+                Ok(())
+
+            }).map_err(|_|{
+                println!("error on sock.");
+                ()
+            }));
+        }
+
+    }
+
     pub fn send_propose(&mut self)
     {
         println!("propose a request");
@@ -188,6 +230,7 @@ impl Future for RaftNode {
             match self.interval.poll() {
                 Ok(Async::Ready(_)) => {
                     println!("node interval {} is ready ...", &self.config.id);
+                    self.maintain_peers();
                 },
                 Ok(Async::NotReady) => {
                     println!("node interval {} is not ready ...", &self.config.id);
