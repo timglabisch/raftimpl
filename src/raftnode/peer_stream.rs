@@ -46,6 +46,7 @@ impl Future for PeerStream {
             match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
                 Ok(Async::NotReady) => {
                     println!("read all from Peer");
+                    break;
                 },
                 Ok(Async::Ready(size)) => {
 
