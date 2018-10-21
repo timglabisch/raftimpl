@@ -143,8 +143,21 @@ impl RaftNode {
                     );
                 }
 
+                let peer_map = peer_map.clone();
+
                 // Spawn the future as a concurrent task.
-                tokio::spawn(peer)
+                tokio::spawn(peer.then(move |_| {
+                    
+                    {
+                        let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+
+                        peer_map.remove(&peer_id);
+                    }
+
+                    println!("node is killed.");
+
+                    Ok(())
+                }))
             });
 
         self.tcp_server = Some(Box::new(server));
