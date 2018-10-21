@@ -9,8 +9,8 @@ use raftnode::protocol::ProtocolMessage;
 use raftnode::protocol::Protocol;
 use bytes::BytesMut;
 use bytes::BufMut;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::mpsc::channel;
+use futures::sync::mpsc::{Receiver, Sender};
+use futures::sync::mpsc::channel;
 use raftnode::node::RaftNodeHandle;
 
 pub struct Peer {
@@ -34,7 +34,7 @@ impl Peer {
 
         let (connection_read, connection_write) = connection.split();
 
-        let (channel_in_sender, channel_in_receiver) = channel::<PeerCommand>();
+        let (channel_in_sender, channel_in_receiver) = channel::<PeerCommand>(100);
 
         Peer {
             id,
@@ -65,6 +65,24 @@ impl Future for Peer {
         loop {
             match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
                 Ok(Async::NotReady) => {
+                    println!("no command from node from peer {}", self.id);
+                },
+                Ok(Async::Ready(command)) => {
+                    println!("got command {:?} from peer {}", command, self.id);
+                },
+                Err(ref e) if e.kind() == WouldBlock => {
+                    println!("got command would block {}", self.id);
+                }
+                Err(e) => {
+                    println!("peer {} has an error, teardown.", self.id);
+                    return Err(())
+                },
+            }
+        }
+
+        loop {
+            match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
+                Ok(Async::NotReady) => {
                     println!("read all from Peer {}", self.id);
                 },
                 Ok(Async::Ready(size)) => {
@@ -72,8 +90,6 @@ impl Future for Peer {
                     println!("start to read {} bytes from Peer {}", size, self.id);
 
                     self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
-
-                    panic!("ok no...");
                 },
                 Err(ref e) if e.kind() == WouldBlock => {
                     println!("read from peer {} would block", self.id);
