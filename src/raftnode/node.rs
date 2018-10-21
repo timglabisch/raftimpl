@@ -14,8 +14,8 @@ use std::time::Duration;
 use tokio::prelude::StreamExt;
 use std::time::Instant;
 use tokio::io::ErrorKind::WouldBlock;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::mpsc::channel;
+use futures::sync::mpsc::{Receiver, Sender};
+use futures::sync::mpsc::channel;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -23,6 +23,7 @@ use std::ops::Deref;
 use std::sync::RwLock;
 use raftnode::peer::PeerHandle;
 use std::collections::HashMap;
+use futures::Sink;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -83,7 +84,7 @@ impl RaftNode {
 
         let node_id = config.id;
 
-        let (channel_in_sender, channel_in_receiver) = channel::<RaftNodeCommand>();
+        let (channel_in_sender, channel_in_receiver) = channel::<RaftNodeCommand>(100);
 
 
         RaftNode {
@@ -147,7 +148,7 @@ impl RaftNode {
 
                 // Spawn the future as a concurrent task.
                 tokio::spawn(peer.then(move |_| {
-                    
+
                     {
                         let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
 
@@ -232,7 +233,7 @@ impl RaftNodeHandle {
         }
     }
 
-    pub fn send(&self, command: RaftNodeCommand) {
-        self.send(command);
+    pub fn send(&mut self, command: RaftNodeCommand) {
+        self.sender.try_send(command).expect("peer cannot communicate to raftNode");
     }
 }

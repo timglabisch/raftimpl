@@ -138,7 +138,7 @@ impl PeerHandle {
         }
     }
 
-    pub fn send(&self, command: PeerCommand) {
-        self.send(command);
+    pub fn send(&mut self, command: PeerCommand) {
+        self.sender.try_send(command).expect("could not send to handle.");
     }
 }
