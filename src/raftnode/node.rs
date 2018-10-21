@@ -20,6 +20,9 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::ops::Deref;
+use std::sync::RwLock;
+use raftnode::peer::PeerHandle;
+use std::collections::HashMap;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -30,6 +33,12 @@ pub struct RaftNode {
     interval: Interval,
     channel_in_receiver: Receiver<RaftNodeCommand>,
     channel_in_sender: Sender<RaftNodeCommand>,
+    peers: Arc<RwLock<HashMap<u64, RaftNodePeerInfo>>>,
+}
+
+pub struct RaftNodePeerInfo {
+    id: u64,
+    handle: PeerHandle,
 }
 
 impl RaftNode {
@@ -84,7 +93,8 @@ impl RaftNode {
             tcp_server: None,
             interval: Interval::new_interval(Duration::from_millis(1000)),
             channel_in_receiver,
-            channel_in_sender
+            channel_in_sender,
+            peers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -107,19 +117,34 @@ impl RaftNode {
 
 
         let peer_counter = self.peer_counter.clone();
+        let peer_map = self.peers.clone();
 
         let server = listener.incoming()
             .map_err(|e| eprintln!("accept failed = {:?}", e))
             .for_each(move |sock| {
 
-                let peer_id = peer_counter.deref().fetch_add(1, Ordering::SeqCst);
+                let peer_id = peer_counter.deref().fetch_add(1, Ordering::SeqCst) as u64;
 
-                // Spawn the future as a concurrent task.
-                tokio::spawn(Peer::new(
-                    peer_id as u64,
+                let peer = Peer::new(
+                    peer_id,
                     raft_node_handle.clone(),
                     sock,
-                ))
+                );
+
+                {
+                    let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+
+                    peer_map.insert(
+                        peer_id,
+                        RaftNodePeerInfo {
+                            id: peer_id,
+                            handle: peer.handle()
+                        }
+                    );
+                }
+
+                // Spawn the future as a concurrent task.
+                tokio::spawn(peer)
             });
 
         self.tcp_server = Some(Box::new(server));
