@@ -26,6 +26,7 @@ use std::collections::HashMap;
 use futures::Sink;
 use tokio::net::TcpStream;
 use raftnode::peer_stream::PeerStream;
+use raftnode::peer_inflight::PeerInflight;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -191,18 +192,48 @@ impl RaftNode {
 
             let tcp = TcpStream::connect(&format!("127.0.0.1:200{}", peer_id).parse().expect("could not parse peer url."));
 
+            let peer_map = self.peers.clone();
+
+            let raft_node_handle = self.handle().clone();
 
             tokio::spawn(
-                tcp.and_then(|sock|{
+            tcp
+                .map_err(|_|{
+                    println!("error on sock.");
+                    ()
+                })
+                .and_then(|tcp_stream|{
+                    PeerInflight::new(PeerStream::new(tcp_stream))
+                })
+                .and_then(move |(peer_id, peer_stream)|{
 
-                println!("got socket ...");
 
-                Ok(())
+                    let peer = Peer::new(
+                        peer_id,
+                        raft_node_handle.clone(),
+                        peer_stream
+                    );
 
-            }).map_err(|_|{
-                println!("error on sock.");
-                ()
-            }));
+                   {
+                       let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+
+                       if peer_map.get(&peer_id).is_some() {
+                           println!("peer is already registered");
+                           panic!("how to return this?");
+                       }
+
+                       peer_map.insert(peer_id, RaftNodePeerInfo {
+                           id: peer_id,
+                           handle: peer.handle()
+                       });
+                   }
+
+                    peer
+                })
+                .and_then(|_| {
+                    ::futures::future::ok(())
+                })
+            );
         }
 
     }

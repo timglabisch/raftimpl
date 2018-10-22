@@ -11,6 +11,8 @@ const SIZE_32 : usize = 4;
 const HEADER_SIZE : usize = 3 * SIZE_16 + 3 * SIZE_32;
 
 pub enum ProtocolMessage {
+    Hello(u64), // tcp client sends a hello with it's id.
+    HelloAck(u64, u64), // we get back an ack. with the original id and the responder id.
     Raft(Message),
 }
 
@@ -86,6 +88,9 @@ impl Protocol {
 
         let body = match protocol_message {
             ProtocolMessage::Raft(m) => m.write_to_bytes().expect("could not get bytes for message"),
+            _ => {
+                panic!("not supported.");
+            }
         };
 
         let raw_protocol_message = RawProtocolMessage {
