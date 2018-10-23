@@ -10,13 +10,17 @@ use bytes::BufMut;
 use tokio::io::AsyncRead;
 use futures::Stream;
 use tokio::io::ErrorKind::WouldBlock;
+use futures::Poll;
+use tokio::io;
+use tokio::io::AsyncWrite;
+use tokio::prelude::future::poll_fn;
 
 pub struct PeerStream {
     connection_read : ReadHalf<TcpStream>,
     connection_write : WriteHalf<TcpStream>,
+    write_buffer: BytesMut,
     read_buffer: BytesMut,
     tmp_read_buffer: [u8; 4096],
-    messages: Vec<ProtocolMessage>
 }
 
 impl PeerStream {
@@ -28,10 +32,43 @@ impl PeerStream {
             connection_read,
             connection_write,
             read_buffer: BytesMut::new(),
+            write_buffer: BytesMut::new(),
             tmp_read_buffer: [0; 4096],
-            messages: vec![]
         }
 
+    }
+
+    fn poll_flush(&mut self) -> Poll<(), io::Error> {
+        // As long as there is buffered data to write, try to write it.
+        while !self.write_buffer.is_empty() {
+            // Try to write some bytes to the socket
+            let n = try_ready!(self.connection_write.poll_write(&self.write_buffer));
+
+            // As long as the wr is not empty, a successful write should
+            // never write 0 bytes.
+            assert!(n > 0);
+
+            println!("sending {} bytes", n);
+
+            // This discards the first `n` bytes of the buffer.
+            let _ = self.write_buffer.split_to(n);
+        }
+
+        Ok(Async::Ready(()))
+    }
+
+    pub fn with_hello_message(mut self, message : ProtocolMessage) -> Self {
+
+        let mut buf =  BytesMut::new();
+
+        match Protocol::encode(message, &mut buf) {
+            Ok(_) => {},
+            Err(e) => { panic!("error on message encoding") }
+        };
+
+        self.write_buffer.put_slice(&buf);
+
+        self
     }
 }
 
@@ -41,6 +78,10 @@ impl Future for PeerStream {
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
+
+        if self.poll_flush().is_err() {
+            return Err(());
+        }
 
         loop {
             match self.connection_read.poll_read(&mut self.tmp_read_buffer) {

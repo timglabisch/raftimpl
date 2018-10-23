@@ -27,6 +27,7 @@ use futures::Sink;
 use tokio::net::TcpStream;
 use raftnode::peer_stream::PeerStream;
 use raftnode::peer_inflight::PeerInflight;
+use raftnode::protocol::ProtocolMessage;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -196,14 +197,21 @@ impl RaftNode {
 
             let raft_node_handle = self.handle().clone();
 
+            let config_id = self.config.id;
+
             tokio::spawn(
             tcp
                 .map_err(|_|{
                     println!("error on sock.");
                     ()
                 })
-                .and_then(|tcp_stream|{
-                    PeerInflight::new(PeerStream::new(tcp_stream))
+                .and_then(move |tcp_stream|{
+
+                    let stream = PeerStream::new(tcp_stream)
+                        .with_hello_message(ProtocolMessage::Hello(config_id));
+
+                    // tcp_stream
+                    PeerInflight::new(stream)
                 })
                 .and_then(move |(peer_id, peer_stream)|{
 
