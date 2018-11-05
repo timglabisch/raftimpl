@@ -75,7 +75,7 @@ impl Future for Peer {
         loop {
             match self.peer_stream.poll() {
                 Ok(Async::NotReady) => {
-                    println!("read all from Peer {}", self.id);
+                    println!("read all from Peer 1 {}", self.id);
                     break;
                 },
                 Ok(Async::Ready(message)) => {

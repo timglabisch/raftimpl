@@ -86,7 +86,7 @@ impl Future for PeerStream {
         loop {
             match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
                 Ok(Async::NotReady) => {
-                    println!("read all from Peer");
+                    println!("read all from Peer 3");
                     break;
                 },
                 Ok(Async::Ready(size)) => {
@@ -94,6 +94,10 @@ impl Future for PeerStream {
                     println!("start to read {} bytes from Peer", size);
 
                     self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
+
+                    if size == 0 {
+                        break; // todo, is this correct?
+                    }
                 },
                 Err(ref e) if e.kind() == WouldBlock => {
                     println!("read from peer would block");

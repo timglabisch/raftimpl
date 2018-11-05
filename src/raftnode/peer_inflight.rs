@@ -33,7 +33,7 @@ impl Future for PeerInflight {
         loop {
             match self.stream.poll() {
                 Ok(Async::NotReady) => {
-                    println!("read all from Peer");
+                    println!("read all from Peer 2");
                     return Ok(Async::NotReady);
                 },
                 Ok(Async::Ready(msg)) => {
