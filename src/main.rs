@@ -20,7 +20,7 @@ fn main() {
         select_all(vec![
             RaftNode::new(1),
             RaftNode::new(2),
-            RaftNode::new(3),
+        //   RaftNode::new(3),
         ]).and_then(|_|{
             Ok(())
         }).map_err(|_| {
