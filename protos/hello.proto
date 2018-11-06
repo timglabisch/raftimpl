@@ -1,7 +1,11 @@
 syntax = "proto3";
 
 message HelloRequest {
-  string query = 1;
-  int32 page_number = 2;
-  int32 result_per_page = 3;
+  uint64 node_id = 1;
 }
+
+message HelloResponse {
+  uint64 request_node_id = 1;
+  uint64 response_node_id = 2;
+}
+

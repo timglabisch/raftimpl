@@ -14,6 +14,7 @@ use futures::select_all;
 use futures::prelude::*;
 
 mod raftnode;
+mod protos;
 
 fn main() {
     ::tokio::run(

@@ -39,10 +39,10 @@ impl Future for PeerInflight {
                 Ok(Async::Ready(msg)) => {
 
                     match msg {
-                        Some(ProtocolMessage::HelloAck(_, node_id)) => {
+                        Some(ProtocolMessage::HelloAck(m)) => {
                             match self.stream.take() {
                                 Some(stream) => {
-                                    return Ok(Async::Ready((node_id, stream)));
+                                    return Ok(Async::Ready((m.get_request_node_id(), stream)));
                                 },
                                 None => {
                                     println!("got multiple acks, this is a protocol violation.");

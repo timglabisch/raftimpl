@@ -5,6 +5,7 @@ use byteorder::ByteOrder;
 use raft::eraftpb::Message;
 use protobuf::Message as ProtoMessage;
 use byteorder::WriteBytesExt;
+use protos::hello::{HelloRequest, HelloResponse};
 
 const SIZE_16: usize = 2;
 const SIZE_32: usize = 4;
@@ -12,9 +13,9 @@ const SIZE_32: usize = 4;
 const HEADER_SIZE: usize = 3 * SIZE_16 + 3 * SIZE_32;
 
 pub enum ProtocolMessage {
-    Hello(u64),
+    Hello(HelloRequest),
     // tcp client sends a hello with it's id.
-    HelloAck(u64, u64),
+    HelloAck(HelloResponse),
     // we get back an ack. with the original id and the responder id.
     Raft(Message),
 }
@@ -28,7 +29,7 @@ impl ProtocolMessage {
         match self {
             &ProtocolMessage::Raft(_) => ProtocolMessage::TYPE_RAFT,
             &ProtocolMessage::Hello(_) => ProtocolMessage::TYPE_HELLO,
-            &ProtocolMessage::HelloAck(_, _) => ProtocolMessage::TYPE_HELLO_ACK,
+            &ProtocolMessage::HelloAck(_) => ProtocolMessage::TYPE_HELLO_ACK,
             _ => {
                 panic!("not supported.");
             }
@@ -40,18 +41,11 @@ impl ProtocolMessage {
             &ProtocolMessage::Raft(ref m) => {
                 Ok(m.write_to_bytes().expect("could not get bytes for message"))
             },
-            &ProtocolMessage::Hello(id) => {
-                println!("encoded Hello Message {}", id);
-                let mut buf = [0; 8];
-                BigEndian::write_u64(&mut buf, id as u64);
-                Ok(buf.to_vec())
+            &ProtocolMessage::Hello(ref m) => {
+                Ok(m.write_to_bytes().expect("could not get bytes for message"))
             },
-            &ProtocolMessage::HelloAck(id, other) => {
-                println!("encoded hello ack from peer {} -> {}", id, other);
-                let mut buf = [0; 16];
-                BigEndian::write_u64(&mut buf, id as u64);
-                BigEndian::write_u64(&mut buf, other as u64);
-                Ok(buf.to_vec())
+            &ProtocolMessage::HelloAck(ref m) => {
+                Ok(m.write_to_bytes().expect("could not get bytes for message"))
             }
         }
     }
@@ -65,13 +59,16 @@ impl ProtocolMessage {
                 }
             },
             ProtocolMessage::TYPE_HELLO => {
-                if body.len() != 8 {
-                    Err("Hello Type has the wrong size.");
+                match ::protobuf::parse_from_bytes::<HelloRequest>(&body) {
+                    Ok(m) => Ok(ProtocolMessage::Hello(m)),
+                    Err(_) => Err("could not parse message".to_string())
                 }
-                Ok(ProtocolMessage::Hello(1))
             },
             ProtocolMessage::TYPE_HELLO_ACK => {
-                Ok(ProtocolMessage::HelloAck(1, 2))
+                match ::protobuf::parse_from_bytes::<HelloResponse>(&body) {
+                    Ok(m) => Ok(ProtocolMessage::HelloAck(m)),
+                    Err(_) => Err("could not parse message".to_string())
+                }
             },
             _ => Err("unknown message".to_string())
         }

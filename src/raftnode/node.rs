@@ -28,6 +28,7 @@ use tokio::net::TcpStream;
 use raftnode::peer_stream::PeerStream;
 use raftnode::peer_inflight::PeerInflight;
 use raftnode::protocol::ProtocolMessage;
+use protos::hello::HelloRequest;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -207,8 +208,11 @@ impl RaftNode {
                 })
                 .and_then(move |tcp_stream|{
 
+                    let mut hello_request = HelloRequest::new();
+                    hello_request.set_node_id(config_id);
+
                     let stream = PeerStream::new(tcp_stream)
-                        .with_hello_message(ProtocolMessage::Hello(config_id));
+                        .with_hello_message(ProtocolMessage::Hello(hello_request));
 
                     // tcp_stream
                     PeerInflight::new(stream)
