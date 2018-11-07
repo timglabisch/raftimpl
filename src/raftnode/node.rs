@@ -29,6 +29,7 @@ use raftnode::peer_stream::PeerStream;
 use raftnode::peer_inflight::PeerInflight;
 use raftnode::protocol::ProtocolMessage;
 use protos::hello::HelloRequest;
+use futures::future::Either;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -234,7 +235,7 @@ impl RaftNode {
 
                        if peer_map.get(&peer_id).is_some() {
                            println!("node {} | peer is already registered", config_id);
-                           panic!("how to return this?");
+                           return Either::B(::futures::future::err(()));
                        }
 
                        peer_map.insert(peer_id, RaftNodePeerInfo {
@@ -243,10 +244,14 @@ impl RaftNode {
                        });
                    }
 
-                    peer
+                    Either::A(peer)
                 })
                 .and_then(|_| {
                     ::futures::future::ok(())
+                })
+                .map_err(move |_|{
+                    println!("node {} | peer killed.", config_id);
+                    ()
                 })
             );
         }
