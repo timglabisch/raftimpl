@@ -51,6 +51,7 @@ impl RaftNode {
 
     pub fn handle(&self) -> RaftNodeHandle {
         RaftNodeHandle {
+            id: self.config.id,
             sender: self.channel_in_sender.clone()
         }
     }
@@ -112,7 +113,7 @@ impl RaftNode {
 
         let port = format!("127.0.0.1:200{}", self.config.id);
 
-        println!("runing node {} on port {}", self.config.id, port);
+        println!("node {} | running on port {}", self.config.id, port);
 
         let addr = port.parse().unwrap();
 
@@ -124,6 +125,7 @@ impl RaftNode {
 
         let peer_counter = self.peer_counter.clone();
         let peer_map = self.peers.clone();
+        let node_id = self.config.id;
 
         let server = listener.incoming()
             .map_err(|e| eprintln!("accept failed = {:?}", e))
@@ -135,7 +137,7 @@ impl RaftNode {
                 let peer = Peer::new(
                     peer_id,
                     raft_node_handle.clone(),
-                    PeerStream::new(sock),
+                    PeerStream::new(node_id, sock),
                 );
 
                 {
@@ -161,7 +163,7 @@ impl RaftNode {
                         peer_map.remove(&peer_id);
                     }
 
-                    println!("node is killed.");
+                    println!("node {} | node is killed.", node_id);
 
                     Ok(())
                 }))
@@ -175,10 +177,11 @@ impl RaftNode {
         let possible_nodes = vec![
             1,
             2,
-            3,
+            // 3,
         ];
 
         let peers = self.peers.write().expect("could not get peers lock");
+
 
         for peer_id in possible_nodes.iter() {
 
@@ -188,7 +191,7 @@ impl RaftNode {
             }
 
             if peers.get(peer_id).is_some() {
-                println!("peer {} already exists, no need to try to contact it.", peer_id);
+                println!("node {} | peer {} already exists, no need to try to contact it.", self.config.id, peer_id);
                 continue;
             }
 
@@ -202,8 +205,8 @@ impl RaftNode {
 
             tokio::spawn(
             tcp
-                .map_err(|_|{
-                    println!("error on sock.");
+                .map_err(move |_|{
+                    println!("node {} | error on sock.", config_id);
                     ()
                 })
                 .and_then(move |tcp_stream|{
@@ -211,7 +214,7 @@ impl RaftNode {
                     let mut hello_request = HelloRequest::new();
                     hello_request.set_node_id(config_id);
 
-                    let stream = PeerStream::new(tcp_stream)
+                    let stream = PeerStream::new(config_id, tcp_stream)
                         .with_hello_message(ProtocolMessage::Hello(hello_request));
 
                     // tcp_stream
@@ -230,7 +233,7 @@ impl RaftNode {
                        let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
 
                        if peer_map.get(&peer_id).is_some() {
-                           println!("peer is already registered");
+                           println!("node {} | peer is already registered", config_id);
                            panic!("how to return this?");
                        }
 
@@ -252,7 +255,7 @@ impl RaftNode {
 
     pub fn send_propose(&mut self)
     {
-        println!("propose a request");
+        println!("node {} | propose a request", self.config.id);
     }
 }
 
@@ -265,7 +268,7 @@ impl Future for RaftNode {
 
         self.listen();
 
-        println!("poll!");
+        println!("node {} | poll!", self.config.id);
 
         // the loop is required because we need to make sure that the interval returns not ready,
         // because we need to ensure that the interval returns Async::NotReady to that this future will be
@@ -273,15 +276,15 @@ impl Future for RaftNode {
         loop {
             match self.interval.poll() {
                 Ok(Async::Ready(_)) => {
-                    println!("node interval {} is ready ...", &self.config.id);
+                    println!("node {} | node interval is ready ...", &self.config.id);
                     self.maintain_peers();
                 },
                 Ok(Async::NotReady) => {
-                    println!("node interval {} is not ready ...", &self.config.id);
+                    println!("node {} | node interval is not ready ...", &self.config.id);
                     break;
                 },
                 Err(e) => {
-                    println!("problem with peer timer, teardown.");
+                    println!("node {} | problem with peer timer, teardown.", &self.config.id);
                     return Err(())
                 },
             };
@@ -290,10 +293,10 @@ impl Future for RaftNode {
         match &mut self.tcp_server {
             Some(ref mut t) => match t.poll() {
                 Ok(t) => {
-                    println!("tcp server {} poll ok.", &self.config.id);
+                    println!("node {} | tcp server poll ok.", &self.config.id);
                 },
                 Err(e) => {
-                    println!("error on polling tcp server {}, teardown.", &self.config.id);
+                    println!("node {} | error on polling tcp server, teardown.", &self.config.id);
                     return Err(())
                 },
             },
@@ -310,14 +313,20 @@ pub enum RaftNodeCommand {
 
 pub struct RaftNodeHandle
 {
+    id: u64,
     sender: Sender<RaftNodeCommand>,
 }
 
 impl RaftNodeHandle {
     pub fn clone(&self) -> RaftNodeHandle {
         RaftNodeHandle {
+            id: self.id,
             sender: self.sender.clone()
         }
+    }
+
+    pub fn get_id(&self) -> u64 {
+        self.id
     }
 
     pub fn send(&mut self, command: RaftNodeCommand) {

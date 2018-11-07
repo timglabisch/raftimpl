@@ -59,14 +59,14 @@ impl Future for Peer {
         loop {
             match self.channel_in_receiver.poll() {
                 Ok(Async::NotReady) => {
-                    println!("no command from node from peer {}", self.id);
+                    println!("node {} | peer {} | no command from node from peer", self.raft_node_handle.get_id(), self.id);
                     break;
                 },
                 Ok(Async::Ready(command)) => {
-                    println!("got command {:?} from peer {}", command, self.id);
+                    println!("node {} | peer {} | got command {:?}", self.raft_node_handle.get_id(), self.id, command);
                 },
                 Err(e) => {
-                    println!("peer {} has an error, teardown.", self.id);
+                    println!("node {} | peer {} | has an error, teardown.", self.raft_node_handle.get_id(), self.id);
                     return Err(())
                 },
             }
@@ -75,22 +75,22 @@ impl Future for Peer {
         loop {
             match self.peer_stream.poll() {
                 Ok(Async::NotReady) => {
-                    println!("read all from Peer 1 {}", self.id);
+                    println!("node {} | peer {} | read all from Peer", self.raft_node_handle.get_id(), self.id);
                     break;
                 },
                 Ok(Async::Ready(message)) => {
-                    println!("read message from Peer {}", self.id);
+                    println!("node {} | peer {} | read message from Peer", self.raft_node_handle.get_id(), self.id);
                     self.mailbox_incoming.push(message);
                 },
                 Err(e) => {
-                    println!("peer {} has an error, teardown.", self.id);
+                    println!("node {} | peer {} | peer has an error, teardown.", self.raft_node_handle.get_id(), self.id);
                     return Err(())
                 },
             }
         };
 
 
-        println!("client mailbox has {} items", self.mailbox_incoming.len());
+        println!("node {} | peer {} | client mailbox has {} items", self.raft_node_handle.get_id(), self.id, self.mailbox_incoming.len());
 
         return Ok(Async::NotReady);
     }

@@ -16,6 +16,7 @@ use tokio::io::AsyncWrite;
 use tokio::prelude::future::poll_fn;
 
 pub struct PeerStream {
+    node_id: u64,
     connection_read : ReadHalf<TcpStream>,
     connection_write : WriteHalf<TcpStream>,
     write_buffer: BytesMut,
@@ -24,11 +25,12 @@ pub struct PeerStream {
 }
 
 impl PeerStream {
-    pub fn new(tcp_stream : TcpStream) -> PeerStream {
+    pub fn new(node_id: u64, tcp_stream : TcpStream) -> PeerStream {
 
         let (connection_read, connection_write) = tcp_stream.split();
 
         PeerStream {
+            node_id,
             connection_read,
             connection_write,
             read_buffer: BytesMut::new(),
@@ -48,7 +50,7 @@ impl PeerStream {
             // never write 0 bytes.
             assert!(n > 0);
 
-            println!("sending {} bytes", n);
+            println!("node {} | sending {} bytes", self.node_id, n);
 
             // This discards the first `n` bytes of the buffer.
             let _ = self.write_buffer.split_to(n);
@@ -70,6 +72,10 @@ impl PeerStream {
 
         self
     }
+
+    pub fn get_node_id(&self) -> u64 {
+        self.node_id
+    }
 }
 
 impl Future for PeerStream {
@@ -86,12 +92,12 @@ impl Future for PeerStream {
         loop {
             match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
                 Ok(Async::NotReady) => {
-                    println!("read all from Peer 3");
+                    println!("node {} | read all from Peer 3", self.node_id);
                     break;
                 },
                 Ok(Async::Ready(size)) => {
 
-                    println!("start to read {} bytes from Peer", size);
+                    println!("node {} | start to read {} bytes from Peer", self.node_id, size);
 
                     self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
 
@@ -100,23 +106,23 @@ impl Future for PeerStream {
                     }
                 },
                 Err(ref e) if e.kind() == WouldBlock => {
-                    println!("read from peer would block");
+                    println!("node {} | read from peer would block", self.node_id);
                 }
                 Err(e) => {
-                    println!("peer has an error, teardown.");
+                    println!("node {} | peer has an error, teardown.", self.node_id);
                     return Err(())
                 },
             }
         };
 
-        match Protocol::decode(&mut self.read_buffer) {
+        match Protocol::decode(self.get_node_id(), &mut self.read_buffer) {
             Err(_) => panic!("issue with decoding a package"),
             Ok(Some(p)) => {
-                println!("stream got package");
+                println!("node {} | stream got package", self.node_id);
                 Ok(Async::Ready(p))
             }
             Ok(None) => {
-                println!("stream has no more package.");
+                println!("node {} | stream has no more package.", self.node_id);
                 Ok(Async::NotReady)
             }
         }

@@ -22,6 +22,13 @@ impl PeerInflight {
         }
     }
 
+    pub fn get_node_id(&self) -> u64 {
+        match self.stream {
+            Some(ref o) => o.get_node_id(),
+            _ => unreachable!("noo")
+        }
+    }
+
 }
 
 impl Future for PeerInflight {
@@ -33,7 +40,7 @@ impl Future for PeerInflight {
         loop {
             match self.stream.poll() {
                 Ok(Async::NotReady) => {
-                    println!("read all from Peer 2");
+                    println!("node {} | read all from Peer 2", self.get_node_id());
                     return Ok(Async::NotReady);
                 },
                 Ok(Async::Ready(msg)) => {
@@ -45,7 +52,7 @@ impl Future for PeerInflight {
                                     return Ok(Async::Ready((m.get_request_node_id(), stream)));
                                 },
                                 None => {
-                                    println!("got multiple acks, this is a protocol violation.");
+                                    println!("node {}, got multiple acks, this is a protocol violation.", self.get_node_id());
                                     return Err(());
                                 }
                             }
@@ -54,7 +61,7 @@ impl Future for PeerInflight {
                             continue;
                         }
                         _ => {
-                            println!("got unsupported message while contacting node.");
+                            println!("node {} | got unsupported message while contacting node.", self.get_node_id());
                             return Err(());
                         }
                     };
@@ -62,7 +69,7 @@ impl Future for PeerInflight {
                     continue;
                 },
                 Err(e) => {
-                    println!("peer has an error, teardown.");
+                    println!("node {} | peer has an error, teardown.", self.get_node_id());
                     return Err(())
                 },
             };

@@ -85,11 +85,11 @@ pub struct RawProtocolMessage {
 pub struct Protocol;
 
 impl Protocol {
-    pub fn decode(src: &mut BytesMut) -> Result<Option<ProtocolMessage>, String> {
+    pub fn decode(node_id : u64, src: &mut BytesMut) -> Result<Option<ProtocolMessage>, String> {
         let len = src.len();
 
         if len < HEADER_SIZE {
-            println!("waiting for bytes, already send {} bytes", len);
+            println!("node {} | waiting for bytes, already send {} bytes", node_id, len);
             return Ok(None);
         }
 
@@ -111,7 +111,7 @@ impl Protocol {
         let size_body = BigEndian::read_u32(&src[14..18]) as usize;
 
         if len < HEADER_SIZE + size_header + size_body {
-            println!("missing bytes for content");
+            println!("node {} | missing bytes for content", node_id);
             return Ok(None);
         }
 
@@ -123,7 +123,7 @@ impl Protocol {
             body: src.split_to(size_body),
         };
 
-        println!("got message");
+        println!("node {} | got message", node_id);
 
         match ProtocolMessage::decode_body(message_type, &raw_protocol_message.body) {
             Ok(m) => Ok(Some(m)),
