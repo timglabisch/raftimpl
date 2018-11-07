@@ -40,6 +40,11 @@ impl PeerStream {
 
     }
 
+    pub fn add_to_write_buffer(&mut self, buf : &[u8])
+    {
+        self.write_buffer.put_slice(buf);
+    }
+
     fn poll_flush(&mut self) -> Poll<(), io::Error> {
         // As long as there is buffered data to write, try to write it.
         while !self.write_buffer.is_empty() {
@@ -85,8 +90,23 @@ impl Future for PeerStream {
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
 
-        if self.poll_flush().is_err() {
-            return Err(());
+        loop {
+            match self.poll_flush() {
+                Ok(Async::Ready(_)) => {
+                    println!("node {} | send queue empty, go on", self.node_id);
+                    break;
+                },
+                Ok(Async::NotReady) => {
+                    println!("node {} | send queue not empty, next round...", self.node_id);
+                },
+                Err(ref e) if e.kind() == WouldBlock => {
+                    println!("node {} | write from peer would block", self.node_id);
+                }
+                Err(e) => {
+                    println!("node {} | issue with the send buffer", self.node_id);
+                    return Err(());
+                }
+            };
         }
 
         loop {

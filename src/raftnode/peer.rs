@@ -14,11 +14,11 @@ use futures::sync::mpsc::channel;
 use raftnode::node::RaftNodeHandle;
 use raftnode::peer_stream::PeerStream;
 use futures::Stream;
+use protos::hello::HelloResponse;
 
 pub struct Peer {
     id : u64,
     raft_node_handle: RaftNodeHandle,
-    mailbox_incoming: Vec<ProtocolMessage>,
     channel_in_receiver: Receiver<PeerCommand>,
     channel_in_sender: Sender<PeerCommand>,
     peer_stream: PeerStream
@@ -36,7 +36,6 @@ impl Peer {
         Peer {
             id,
             peer_stream,
-            mailbox_incoming: vec![],
             channel_in_receiver,
             channel_in_sender,
             raft_node_handle
@@ -62,8 +61,35 @@ impl Future for Peer {
                     println!("node {} | peer {} | no command from node from peer", self.raft_node_handle.get_id(), self.id);
                     break;
                 },
-                Ok(Async::Ready(command)) => {
+                Ok(Async::Ready(None)) => {
+                    // just go on
+                },
+                Ok(Async::Ready(Some(ref command))) => {
                     println!("node {} | peer {} | got command {:?}", self.raft_node_handle.get_id(), self.id, command);
+
+                    match command {
+                        &PeerCommand::IncomingMessage(ref message) => {
+                            match message {
+                                ProtocolMessage::Hello(hello_request) => {
+                                    let mut response = HelloResponse::new();
+                                    response.set_request_node_id(hello_request.node_id);
+                                    response.set_response_node_id(self.raft_node_handle.get_id());
+
+                                    let mut bytes = BytesMut::new();
+                                    Protocol::encode(ProtocolMessage::HelloAck(response), &mut bytes)
+                                        .expect("could not encode msg");
+
+                                    self.peer_stream.add_to_write_buffer(&bytes);
+                                },
+                                _ => {
+                                    panic!("incoming message type not implemented");
+                                }
+                            }
+                        },
+                        _ => {
+                            panic!("peer command not implemented");
+                        }
+                    };
                 },
                 Err(e) => {
                     println!("node {} | peer {} | has an error, teardown.", self.raft_node_handle.get_id(), self.id);
@@ -79,8 +105,11 @@ impl Future for Peer {
                     break;
                 },
                 Ok(Async::Ready(message)) => {
-                    println!("node {} | peer {} | read message from Peer", self.raft_node_handle.get_id(), self.id);
-                    self.mailbox_incoming.push(message);
+                    println!("node {} | peer {} | got message {:?}", self.raft_node_handle.get_id(), self.id, &message);
+                    if self.channel_in_sender.try_send(PeerCommand::IncomingMessage(message)).is_err() {
+                        println!("node {} | peer {} | peer has a full incoming queue, kill it.", self.raft_node_handle.get_id(), self.id);
+                        return Err(());
+                    }
                 },
                 Err(e) => {
                     println!("node {} | peer {} | peer has an error, teardown.", self.raft_node_handle.get_id(), self.id);
@@ -90,7 +119,7 @@ impl Future for Peer {
         };
 
 
-        println!("node {} | peer {} | client mailbox has {} items", self.raft_node_handle.get_id(), self.id, self.mailbox_incoming.len());
+        println!("node {} | peer {} | peer done", self.raft_node_handle.get_id(), self.id);
 
         return Ok(Async::NotReady);
     }
@@ -98,7 +127,7 @@ impl Future for Peer {
 
 #[derive(Debug)]
 pub enum PeerCommand {
-
+    IncomingMessage(ProtocolMessage)
 }
 
 pub struct PeerHandle

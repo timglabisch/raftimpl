@@ -12,6 +12,7 @@ const SIZE_32: usize = 4;
 
 const HEADER_SIZE: usize = 3 * SIZE_16 + 3 * SIZE_32;
 
+#[derive(Debug)]
 pub enum ProtocolMessage {
     Hello(HelloRequest),
     // tcp client sends a hello with it's id.
