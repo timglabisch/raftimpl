@@ -137,7 +137,7 @@ impl Future for PeerStream {
                     println!("node {} | read from peer would block", self.node_id);
                 }
                 Err(e) => {
-                    println!("node {} | peer has an error, teardown.", self.node_id);
+                    println!("node {} | peer has an error, teardown. {:?}", self.node_id, e);
                     return Err(())
                 },
             }

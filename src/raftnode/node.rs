@@ -97,7 +97,7 @@ impl RaftNode {
         let mut peer_slot_map = PeerSlotMap::new();
         peer_slot_map.insert(NodePeerSlot::new(1, "127.0.0.1:2001".into(), None));
         peer_slot_map.insert(NodePeerSlot::new(2, "127.0.0.1:2002".into(), None));
-        peer_slot_map.insert(NodePeerSlot::new(3, "127.0.0.1:2003".into(), None));
+        // peer_slot_map.insert(NodePeerSlot::new(3, "127.0.0.1:2003".into(), None));
 
         RaftNode {
             peer_counter: Arc::new(AtomicUsize::new(0)),
@@ -185,28 +185,24 @@ impl RaftNode {
 
     pub fn maintain_peers(&mut self)
     {
-        let possible_nodes = vec![
-            1,
-            2,
-            // 3,
-        ];
-
         let peers = self.peers.write().expect("could not get peers lock");
 
+        for (_, peer) in peers.iter() {
 
-        for peer_id in possible_nodes.iter() {
+            if peer.has_peer() {
+                println!("node already has peer.");
+                continue;
+            }
 
             // we dont try to connect to us.
-            if &self.config.id == peer_id {
+            if &self.config.id == &peer.get_id() {
+                println!("node already is self.");
                 continue;
             }
 
-            if peers.get(peer_id).is_some() {
-                println!("node {} | peer {} already exists, no need to try to contact it.", self.config.id, peer_id);
-                continue;
-            }
+            let address = peer.get_address().to_string();
 
-            let tcp = TcpStream::connect(&format!("127.0.0.1:200{}", peer_id).parse().expect("could not parse peer url."));
+            let tcp = TcpStream::connect(&address.parse().expect("could not parse peer url."));
 
             let peer_map = self.peers.clone();
 
@@ -216,8 +212,8 @@ impl RaftNode {
 
             tokio::spawn(
                 tcp
-                    .map_err(move |_| {
-                        println!("node {} | error on sock.", config_id);
+                    .map_err(move |e| {
+                        println!("node {} | error on sock {} {:?}.", config_id, address, e);
                         ()
                     })
                     .and_then(move |tcp_stream| {
@@ -265,6 +261,7 @@ impl RaftNode {
                         ()
                     })
             );
+
         }
     }
 
