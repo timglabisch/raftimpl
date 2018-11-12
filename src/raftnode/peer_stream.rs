@@ -17,6 +17,7 @@ use tokio::prelude::future::poll_fn;
 
 pub struct PeerStream {
     node_id: u64,
+    address: String,
     connection_read : ReadHalf<TcpStream>,
     connection_write : WriteHalf<TcpStream>,
     write_buffer: BytesMut,
@@ -27,10 +28,13 @@ pub struct PeerStream {
 impl PeerStream {
     pub fn new(node_id: u64, tcp_stream : TcpStream) -> PeerStream {
 
+        let address = tcp_stream.peer_addr().expect("could not get peer_addr").to_string();
+
         let (connection_read, connection_write) = tcp_stream.split();
 
         PeerStream {
             node_id,
+            address,
             connection_read,
             connection_write,
             read_buffer: BytesMut::new(),
@@ -38,6 +42,10 @@ impl PeerStream {
             tmp_read_buffer: [0; 4096],
         }
 
+    }
+
+    pub fn get_address(&self) -> &str {
+        &self.address
     }
 
     pub fn add_to_write_buffer(&mut self, buf : &[u8])

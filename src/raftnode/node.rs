@@ -30,6 +30,8 @@ use raftnode::peer_inflight::PeerInflight;
 use raftnode::protocol::ProtocolMessage;
 use protos::hello::HelloRequest;
 use futures::future::Either;
+use raftnode::node_peer_slot::PeerSlotMap;
+use raftnode::node_peer_slot::NodePeerSlot;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -40,7 +42,7 @@ pub struct RaftNode {
     interval: Interval,
     channel_in_receiver: Receiver<RaftNodeCommand>,
     channel_in_sender: Sender<RaftNodeCommand>,
-    peers: Arc<RwLock<HashMap<u64, RaftNodePeerInfo>>>,
+    peers: Arc<RwLock<PeerSlotMap>>,
 }
 
 pub struct RaftNodePeerInfo {
@@ -49,11 +51,10 @@ pub struct RaftNodePeerInfo {
 }
 
 impl RaftNode {
-
     pub fn handle(&self) -> RaftNodeHandle {
         RaftNodeHandle {
             id: self.config.id,
-            sender: self.channel_in_sender.clone()
+            sender: self.channel_in_sender.clone(),
         }
     }
 
@@ -93,6 +94,10 @@ impl RaftNode {
 
         let (channel_in_sender, channel_in_receiver) = channel::<RaftNodeCommand>(100);
 
+        let mut peer_slot_map = PeerSlotMap::new();
+        peer_slot_map.insert(NodePeerSlot::new(1, "127.0.0.1:2001".into(), None));
+        peer_slot_map.insert(NodePeerSlot::new(2, "127.0.0.1:2002".into(), None));
+        peer_slot_map.insert(NodePeerSlot::new(3, "127.0.0.1:2003".into(), None));
 
         RaftNode {
             peer_counter: Arc::new(AtomicUsize::new(0)),
@@ -102,12 +107,11 @@ impl RaftNode {
             interval: Interval::new_interval(Duration::from_millis(1000)),
             channel_in_receiver,
             channel_in_sender,
-            peers: Arc::new(RwLock::new(HashMap::new())),
+            peers: Arc::new(RwLock::new(peer_slot_map)),
         }
     }
 
     pub fn listen(&mut self) -> () {
-
         if self.tcp_server.is_some() {
             return ();
         }
@@ -132,42 +136,48 @@ impl RaftNode {
             .map_err(|e| eprintln!("accept failed = {:?}", e))
             .for_each(move |sock| {
 
-                // die id ist hier nicht korrekt, die id muss vom client übermittelt werden.
-                let peer_id = peer_counter.deref().fetch_add(1, Ordering::SeqCst) as u64;
+                PeerInflight::new(PeerStream::new(node_id, sock))
+                    .and_then(|(peer_id, peer_stream)|{
 
-                let peer = Peer::new(
-                    peer_id,
-                    raft_node_handle.clone(),
-                    PeerStream::new(node_id, sock),
-                );
+                    let address = peer_stream.get_address().to_string();
 
-                {
-                    let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
-
-                    peer_map.insert(
+                    let peer = Peer::new(
                         peer_id,
-                        RaftNodePeerInfo {
-                            id: peer_id,
-                            handle: peer.handle()
-                        }
+                        raft_node_handle.clone(),
+                        peer_stream,
                     );
-                }
-
-                let peer_map = peer_map.clone();
-
-                // Spawn the future as a concurrent task.
-                tokio::spawn(peer.then(move |_| {
 
                     {
                         let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
 
-                        peer_map.remove(&peer_id);
+                        peer_map.insert(
+                            NodePeerSlot::new(
+                                peer_id,
+                                address,
+                                Some(peer.handle())
+                            )
+                        );
                     }
 
-                    println!("node {} | node is killed.", node_id);
+                    let peer_map = peer_map.clone();
 
-                    Ok(())
-                }))
+                    // Spawn the future as a concurrent task.
+                    tokio::spawn(peer.then(move |_| {
+                        {
+                            let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+
+                            peer_map.remove(&peer_id);
+                        }
+
+                        println!("node {} | node is killed.", node_id);
+
+                        ::futures::future::ok(())
+                    }))
+
+                });
+
+                Ok(())
+
             });
 
         self.tcp_server = Some(Box::new(server));
@@ -205,57 +215,57 @@ impl RaftNode {
             let config_id = self.config.id;
 
             tokio::spawn(
-            tcp
-                .map_err(move |_|{
-                    println!("node {} | error on sock.", config_id);
-                    ()
-                })
-                .and_then(move |tcp_stream|{
+                tcp
+                    .map_err(move |_| {
+                        println!("node {} | error on sock.", config_id);
+                        ()
+                    })
+                    .and_then(move |tcp_stream| {
+                        let mut hello_request = HelloRequest::new();
+                        hello_request.set_node_id(config_id);
 
-                    let mut hello_request = HelloRequest::new();
-                    hello_request.set_node_id(config_id);
+                        let stream = PeerStream::new(config_id, tcp_stream)
+                            .with_hello_message(ProtocolMessage::Hello(hello_request));
 
-                    let stream = PeerStream::new(config_id, tcp_stream)
-                        .with_hello_message(ProtocolMessage::Hello(hello_request));
+                        // tcp_stream
+                        PeerInflight::new(stream)
+                    })
+                    .and_then(move |(peer_id, peer_stream)| {
 
-                    // tcp_stream
-                    PeerInflight::new(stream)
-                })
-                .and_then(move |(peer_id, peer_stream)|{
+                        let address = peer_stream.get_address().to_string();
 
+                        let peer = Peer::new(
+                            peer_id,
+                            raft_node_handle.clone(),
+                            peer_stream,
+                        );
 
-                    let peer = Peer::new(
-                        peer_id,
-                        raft_node_handle.clone(),
-                        peer_stream
-                    );
+                        {
+                            let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
 
-                   {
-                       let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                            if peer_map.get(&peer_id).is_some() {
+                                println!("node {} | peer is already registered", config_id);
+                                return Either::B(::futures::future::err(()));
+                            }
 
-                       if peer_map.get(&peer_id).is_some() {
-                           println!("node {} | peer is already registered", config_id);
-                           return Either::B(::futures::future::err(()));
-                       }
+                            peer_map.insert(NodePeerSlot::new(
+                                peer_id,
+                                address,
+                                Some(peer.handle())
+                            )).expect("foobar");
+                        }
 
-                       peer_map.insert(peer_id, RaftNodePeerInfo {
-                           id: peer_id,
-                           handle: peer.handle()
-                       });
-                   }
-
-                    Either::A(peer)
-                })
-                .and_then(|_| {
-                    ::futures::future::ok(())
-                })
-                .map_err(move |_|{
-                    println!("node {} | peer killed.", config_id);
-                    ()
-                })
+                        Either::A(peer)
+                    })
+                    .and_then(|_| {
+                        ::futures::future::ok(())
+                    })
+                    .map_err(move |_| {
+                        println!("node {} | peer killed.", config_id);
+                        ()
+                    })
             );
         }
-
     }
 
     pub fn send_propose(&mut self)
@@ -270,7 +280,6 @@ impl Future for RaftNode {
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
-
         self.listen();
 
         println!("node {} | poll!", self.config.id);
@@ -283,15 +292,15 @@ impl Future for RaftNode {
                 Ok(Async::Ready(_)) => {
                     println!("node {} | node interval is ready ...", &self.config.id);
                     self.maintain_peers();
-                },
+                }
                 Ok(Async::NotReady) => {
                     println!("node {} | node interval is not ready ...", &self.config.id);
                     break;
-                },
+                }
                 Err(e) => {
                     println!("node {} | problem with peer timer, teardown.", &self.config.id);
-                    return Err(())
-                },
+                    return Err(());
+                }
             };
         }
 
@@ -299,11 +308,11 @@ impl Future for RaftNode {
             Some(ref mut t) => match t.poll() {
                 Ok(t) => {
                     println!("node {} | tcp server poll ok.", &self.config.id);
-                },
+                }
                 Err(e) => {
                     println!("node {} | error on polling tcp server, teardown.", &self.config.id);
-                    return Err(())
-                },
+                    return Err(());
+                }
             },
             None => panic!("cant poll when the tcp server isnt started. you need to call listen() before")
         };
@@ -312,9 +321,7 @@ impl Future for RaftNode {
     }
 }
 
-pub enum RaftNodeCommand {
-
-}
+pub enum RaftNodeCommand {}
 
 pub struct RaftNodeHandle
 {
@@ -326,7 +333,7 @@ impl RaftNodeHandle {
     pub fn clone(&self) -> RaftNodeHandle {
         RaftNodeHandle {
             id: self.id,
-            sender: self.sender.clone()
+            sender: self.sender.clone(),
         }
     }
 
