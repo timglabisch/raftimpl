@@ -26,12 +26,13 @@ use std::collections::HashMap;
 use futures::Sink;
 use tokio::net::TcpStream;
 use raftnode::peer_stream::PeerStream;
-use raftnode::peer_inflight::PeerInflight;
+use raftnode::peer_inflight::PeerInflightActive;
 use raftnode::protocol::ProtocolMessage;
 use protos::hello::HelloRequest;
 use futures::future::Either;
 use raftnode::node_peer_slot::PeerSlotMap;
 use raftnode::node_peer_slot::NodePeerSlot;
+use raftnode::peer_inflight::PeerInflightPassiv;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -139,13 +140,12 @@ impl RaftNode {
                 let mut hello_request = HelloRequest::new();
                 hello_request.set_node_id(node_id);
 
-                let stream = PeerStream::new(node_id, tcp_stream)
-                    .with_hello_message(ProtocolMessage::Hello(hello_request));
+                let stream = PeerStream::new(node_id, tcp_stream);
 
                 let raft_node_handle = raft_node_handle.clone();
                 let peer_map = peer_map.clone();
 
-                PeerInflight::new(stream)
+                PeerInflightPassiv::new(stream)
                     .and_then(move |(peer_id, peer_stream)|{
 
                     let address = peer_stream.get_address().to_string();
@@ -231,7 +231,7 @@ impl RaftNode {
                             .with_hello_message(ProtocolMessage::Hello(hello_request));
 
                         // tcp_stream
-                        PeerInflight::new(stream)
+                        PeerInflightActive::new(stream)
                     })
                     .and_then(move |(peer_id, peer_stream)| {
 
