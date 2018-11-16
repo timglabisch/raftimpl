@@ -14,6 +14,7 @@ pub struct PeerInflight {
     stream : Option<PeerStream>
 }
 
+// es muss ein unterschied zwischen einem aktiven und einem passiven peerInflight geben.
 impl PeerInflight {
 
     pub fn new(stream : PeerStream) -> PeerInflight {
@@ -60,8 +61,8 @@ impl Future for PeerInflight {
                         None => {
                             continue;
                         }
-                        _ => {
-                            println!("node {} | got unsupported message while contacting node.", self.get_node_id());
+                        Some(m) => {
+                            println!("node {} | got unsupported message {:?} while contacting node.", self.get_node_id(), m);
                             return Err(());
                         }
                     };

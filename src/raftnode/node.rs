@@ -125,7 +125,7 @@ impl RaftNode {
         let listener = TcpListener::bind(&addr)
             .expect("unable to bind TCP listener");
 
-        let raft_node_handle = self.handle();
+        let raft_node_handle = self.handle().clone();
 
 
         let peer_counter = self.peer_counter.clone();
@@ -134,10 +134,19 @@ impl RaftNode {
 
         let server = listener.incoming()
             .map_err(|e| eprintln!("accept failed = {:?}", e))
-            .for_each(move |sock| {
+            .for_each(move |tcp_stream| {
 
-                PeerInflight::new(PeerStream::new(node_id, sock))
-                    .and_then(|(peer_id, peer_stream)|{
+                let mut hello_request = HelloRequest::new();
+                hello_request.set_node_id(node_id);
+
+                let stream = PeerStream::new(node_id, tcp_stream)
+                    .with_hello_message(ProtocolMessage::Hello(hello_request));
+
+                let raft_node_handle = raft_node_handle.clone();
+                let peer_map = peer_map.clone();
+
+                PeerInflight::new(stream)
+                    .and_then(move |(peer_id, peer_stream)|{
 
                     let address = peer_stream.get_address().to_string();
 
@@ -174,9 +183,7 @@ impl RaftNode {
                         ::futures::future::ok(())
                     }))
 
-                });
-
-                Ok(())
+                })
 
             });
 

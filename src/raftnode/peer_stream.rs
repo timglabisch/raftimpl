@@ -106,6 +106,7 @@ impl Future for PeerStream {
                 },
                 Ok(Async::NotReady) => {
                     println!("node {} | send queue not empty, next round...", self.node_id);
+                    return Ok(Async::NotReady);
                 },
                 Err(ref e) if e.kind() == WouldBlock => {
                     println!("node {} | write from peer would block", self.node_id);
