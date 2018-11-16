@@ -33,6 +33,8 @@ use futures::future::Either;
 use raftnode::node_peer_slot::PeerSlotMap;
 use raftnode::node_peer_slot::NodePeerSlot;
 use raftnode::peer_inflight::PeerInflightPassiv;
+use raftnode::peer::PeerCommand;
+use protos::hello::PingRequest;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -196,10 +198,22 @@ impl RaftNode {
 
         for (_, peer) in peers.iter() {
 
-            if peer.has_peer() {
-                println!("node already has peer.");
-                continue;
+            match peer.get_peer() {
+                Some(mut p) => {
+                    println!("node already has peer.");
+
+                    let mut ping_request = PingRequest::new();
+                    ping_request.set_request_node_id(self.config.id);
+                    ping_request.set_response_node_id(peer.get_id());
+
+                    p.send(PeerCommand::OutgoingMessage(ProtocolMessage::PingRequest(ping_request)));
+                    continue;
+                },
+                None => {
+                    // go on ..
+                }
             }
+
 
             // we dont try to connect to us.
             if &self.config.id == &peer.get_id() {

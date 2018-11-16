@@ -9,3 +9,12 @@ message HelloResponse {
   uint64 response_node_id = 2;
 }
 
+message PingRequest {
+    uint64 request_node_id = 1;
+    uint64 response_node_id = 2;
+}
+
+message PingResponse {
+    uint64 request_node_id = 1;
+    uint64 response_node_id = 2;
+}

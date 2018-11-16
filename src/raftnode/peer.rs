@@ -76,7 +76,7 @@ impl Future for Peer {
                                     response.set_response_node_id(self.raft_node_handle.get_id());
 
                                     let mut bytes = BytesMut::new();
-                                    Protocol::encode(ProtocolMessage::HelloAck(response), &mut bytes)
+                                    Protocol::encode(&ProtocolMessage::HelloAck(response), &mut bytes)
                                         .expect("could not encode msg");
 
                                     self.peer_stream.add_to_write_buffer(&bytes);
@@ -85,6 +85,14 @@ impl Future for Peer {
                                     panic!("incoming message type not implemented");
                                 }
                             }
+                        },
+                        &PeerCommand::OutgoingMessage(ref message) => {
+
+                            let mut bytes = BytesMut::new();
+                            Protocol::encode(message, &mut bytes)
+                                .expect("could not encode msg");
+
+                            self.peer_stream.add_to_write_buffer(&bytes);
                         },
                         _ => {
                             panic!("peer command not implemented");
@@ -127,7 +135,8 @@ impl Future for Peer {
 
 #[derive(Debug)]
 pub enum PeerCommand {
-    IncomingMessage(ProtocolMessage)
+    IncomingMessage(ProtocolMessage),
+    OutgoingMessage(ProtocolMessage)
 }
 
 pub struct PeerHandle

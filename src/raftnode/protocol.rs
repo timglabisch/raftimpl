@@ -6,6 +6,8 @@ use raft::eraftpb::Message;
 use protobuf::Message as ProtoMessage;
 use byteorder::WriteBytesExt;
 use protos::hello::{HelloRequest, HelloResponse};
+use protos::hello::PingRequest;
+use protos::hello::PingResponse;
 
 const SIZE_16: usize = 2;
 const SIZE_32: usize = 4;
@@ -19,18 +21,25 @@ pub enum ProtocolMessage {
     HelloAck(HelloResponse),
     // we get back an ack. with the original id and the responder id.
     Raft(Message),
+
+    PingRequest(PingRequest),
+    PingReponse(PingResponse),
 }
 
 impl ProtocolMessage {
     pub const TYPE_RAFT: u16 = 1;
     pub const TYPE_HELLO: u16 = 2;
     pub const TYPE_HELLO_ACK: u16 = 3;
+    pub const TYPE_PING_REQUEST: u16 = 4;
+    pub const TYPE_PING_RESPONSE: u16 = 5;
 
     pub fn encode_type(&self) -> u16 {
         match self {
             &ProtocolMessage::Raft(_) => ProtocolMessage::TYPE_RAFT,
             &ProtocolMessage::Hello(_) => ProtocolMessage::TYPE_HELLO,
             &ProtocolMessage::HelloAck(_) => ProtocolMessage::TYPE_HELLO_ACK,
+            &ProtocolMessage::PingRequest(_) => ProtocolMessage::TYPE_PING_REQUEST,
+            &ProtocolMessage::PingReponse(_) => ProtocolMessage::TYPE_PING_RESPONSE,
             _ => {
                 panic!("not supported.");
             }
@@ -46,6 +55,12 @@ impl ProtocolMessage {
                 Ok(m.write_to_bytes().expect("could not get bytes for message"))
             },
             &ProtocolMessage::HelloAck(ref m) => {
+                Ok(m.write_to_bytes().expect("could not get bytes for message"))
+            },
+            &ProtocolMessage::PingRequest(ref m) => {
+                Ok(m.write_to_bytes().expect("could not get bytes for message"))
+            },
+            &ProtocolMessage::PingReponse(ref m) => {
                 Ok(m.write_to_bytes().expect("could not get bytes for message"))
             }
         }
@@ -66,6 +81,18 @@ impl ProtocolMessage {
                 }
             },
             ProtocolMessage::TYPE_HELLO_ACK => {
+                match ::protobuf::parse_from_bytes::<HelloResponse>(&body) {
+                    Ok(m) => Ok(ProtocolMessage::HelloAck(m)),
+                    Err(_) => Err("could not parse message".to_string())
+                }
+            },
+            ProtocolMessage::TYPE_PING_REQUEST => {
+                match ::protobuf::parse_from_bytes::<HelloResponse>(&body) {
+                    Ok(m) => Ok(ProtocolMessage::HelloAck(m)),
+                    Err(_) => Err("could not parse message".to_string())
+                }
+            },
+            ProtocolMessage::TYPE_PING_RESPONSE => {
                 match ::protobuf::parse_from_bytes::<HelloResponse>(&body) {
                     Ok(m) => Ok(ProtocolMessage::HelloAck(m)),
                     Err(_) => Err("could not parse message".to_string())
@@ -133,7 +160,7 @@ impl Protocol {
     }
 
 
-    pub fn encode(protocol_message: ProtocolMessage, dst_bytes: &mut BytesMut) -> Result<(), String> {
+    pub fn encode(protocol_message: &ProtocolMessage, dst_bytes: &mut BytesMut) -> Result<(), String> {
         let body = protocol_message.encode_body()?;
 
         let raw_protocol_message = RawProtocolMessage {

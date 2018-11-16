@@ -27,6 +27,13 @@ impl NodePeerSlot {
     pub fn has_peer(&self) -> bool {
         self.peer.is_some()
     }
+
+    pub fn get_peer(&self) -> Option<PeerHandle> {
+        match &self.peer {
+            Some(ref p) => Some(p.clone()),
+            None => None
+        }
+    }
 }
 
 pub struct PeerSlotMap {

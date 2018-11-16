@@ -76,7 +76,7 @@ impl PeerStream {
 
         let mut buf =  BytesMut::new();
 
-        match Protocol::encode(message, &mut buf) {
+        match Protocol::encode(&message, &mut buf) {
             Ok(_) => {},
             Err(e) => { panic!("error on message encoding") }
         };
