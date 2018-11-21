@@ -64,10 +64,6 @@ impl PeerSlotMap {
 
     pub fn insert(&mut self, node : NodePeerSlot) -> Result<(), ()> {
 
-        if self.slots_identifier_map.get(&node.get_id()).is_some() {
-            return Err(());
-        }
-
         self.slots_identifier_map.insert(node.get_id(), node);
 
         Ok(())

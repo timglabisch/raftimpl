@@ -82,7 +82,7 @@ impl Future for Peer {
                                     self.peer_stream.add_to_write_buffer(&bytes);
                                 },
                                 _ => {
-                                    panic!("incoming message type not implemented");
+                                    panic!("incoming message type not implemented: {:?}", message);
                                 }
                             }
                         },
@@ -91,6 +91,8 @@ impl Future for Peer {
                             let mut bytes = BytesMut::new();
                             Protocol::encode(message, &mut bytes)
                                 .expect("could not encode msg");
+
+                            println!("sending message to peer!");
 
                             self.peer_stream.add_to_write_buffer(&bytes);
                         },

@@ -87,14 +87,14 @@ impl ProtocolMessage {
                 }
             },
             ProtocolMessage::TYPE_PING_REQUEST => {
-                match ::protobuf::parse_from_bytes::<HelloResponse>(&body) {
-                    Ok(m) => Ok(ProtocolMessage::HelloAck(m)),
+                match ::protobuf::parse_from_bytes::<PingRequest>(&body) {
+                    Ok(m) => Ok(ProtocolMessage::PingRequest(m)),
                     Err(_) => Err("could not parse message".to_string())
                 }
             },
             ProtocolMessage::TYPE_PING_RESPONSE => {
-                match ::protobuf::parse_from_bytes::<HelloResponse>(&body) {
-                    Ok(m) => Ok(ProtocolMessage::HelloAck(m)),
+                match ::protobuf::parse_from_bytes::<PingResponse>(&body) {
+                    Ok(m) => Ok(ProtocolMessage::PingReponse(m)),
                     Err(_) => Err("could not parse message".to_string())
                 }
             },

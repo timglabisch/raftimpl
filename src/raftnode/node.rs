@@ -260,16 +260,27 @@ impl RaftNode {
                         {
                             let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
 
-                            if peer_map.get(&peer_id).is_some() {
-                                println!("node {} | peer is already registered", config_id);
-                                return Either::B(::futures::future::err(()));
-                            }
+                            match  peer_map.get(&peer_id) {
+                                Some(ref p) => if p.has_peer() {
+                                    println!("node {} | peer is already registered", config_id);
+                                    return Either::B(::futures::future::err(()));
+                                },
+                                _ => {}
+                            };
 
-                            peer_map.insert(NodePeerSlot::new(
+                            match peer_map.insert(NodePeerSlot::new(
                                 peer_id,
                                 address,
                                 Some(peer.handle())
-                            )).expect("foobar");
+                            )) {
+                                Ok(_) => {},
+                                Err(e) => {
+                                    println!("error: could not insert peer into map: {:?}", e);
+
+                                    return Either::B(::futures::future::err(()));
+                                }
+                            };
+
                         }
 
                         Either::A(peer)
@@ -278,6 +289,12 @@ impl RaftNode {
                         ::futures::future::ok(())
                     })
                     .map_err(move |_| {
+
+                        /*
+                        let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                        peer_map.remove(peer_id);
+                        */
+
                         println!("node {} | peer killed.", config_id);
                         ()
                     })
