@@ -15,6 +15,7 @@ use raftnode::node::RaftNodeHandle;
 use raftnode::peer_stream::PeerStream;
 use futures::Stream;
 use protos::hello::HelloResponse;
+use protos::hello::PingResponse;
 
 pub struct Peer {
     id : u64,
@@ -70,17 +71,20 @@ impl Future for Peer {
                     match command {
                         &PeerCommand::IncomingMessage(ref message) => {
                             match message {
-                                ProtocolMessage::Hello(hello_request) => {
-                                    let mut response = HelloResponse::new();
-                                    response.set_request_node_id(hello_request.node_id);
-                                    response.set_response_node_id(self.raft_node_handle.get_id());
+                                ProtocolMessage::PingRequest(p) => {
+                                    let mut response = PingResponse::new();
+                                    response.set_request_node_id(self.raft_node_handle.get_id());
+                                    response.set_response_node_id(p.get_request_node_id());
 
                                     let mut bytes = BytesMut::new();
-                                    Protocol::encode(&ProtocolMessage::HelloAck(response), &mut bytes)
+                                    Protocol::encode(&ProtocolMessage::PingReponse(response), &mut bytes)
                                         .expect("could not encode msg");
 
                                     self.peer_stream.add_to_write_buffer(&bytes);
                                 },
+                                ProtocolMessage::PingReponse(p) => {
+                                    println!("got ping response");
+                                }
                                 _ => {
                                     panic!("incoming message type not implemented: {:?}", message);
                                 }
