@@ -206,7 +206,11 @@ impl RaftNode {
                     ping_request.set_request_node_id(self.config.id);
                     ping_request.set_response_node_id(peer.get_id());
 
-                    p.send(PeerCommand::OutgoingMessage(ProtocolMessage::PingRequest(ping_request)));
+                    match p.send(PeerCommand::OutgoingMessage(ProtocolMessage::PingRequest(ping_request))) {
+                        Err(_) => { println!("node {} | could not send to peer {}", self.config.id, peer.get_id()); },
+                        _ => {}
+                    }
+
                     continue;
                 },
                 None => {
@@ -217,7 +221,7 @@ impl RaftNode {
 
             // we dont try to connect to us.
             if &self.config.id == &peer.get_id() {
-                println!("node already is self.");
+                //println!("node already is self.");
                 continue;
             }
 
@@ -226,6 +230,7 @@ impl RaftNode {
             let tcp = TcpStream::connect(&address.parse().expect("could not parse peer url."));
 
             let peer_map = self.peers.clone();
+            let peer_map2 = self.peers.clone();
 
             let raft_node_handle = self.handle().clone();
 
@@ -263,7 +268,7 @@ impl RaftNode {
                             match  peer_map.get(&peer_id) {
                                 Some(ref p) => if p.has_peer() {
                                     println!("node {} | peer is already registered", config_id);
-                                    return Either::B(::futures::future::err(()));
+                                    return ::futures::future::err(());
                                 },
                                 _ => {}
                             };
@@ -277,24 +282,22 @@ impl RaftNode {
                                 Err(e) => {
                                     println!("error: could not insert peer into map: {:?}", e);
 
-                                    return Either::B(::futures::future::err(()));
+                                    return ::futures::future::err(());
                                 }
                             };
 
                         }
 
-                        Either::A(peer)
+                        ::futures::future::ok(peer)
                     })
-                    .and_then(|_| {
+                    .and_then(move |peer| {
+
+                        let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
+                        peer_map.remove(&peer.get_id());
+
                         ::futures::future::ok(())
                     })
                     .map_err(move |_| {
-
-                        /*
-                        let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
-                        peer_map.remove(peer_id);
-                        */
-
                         println!("node {} | peer killed.", config_id);
                         ()
                     })

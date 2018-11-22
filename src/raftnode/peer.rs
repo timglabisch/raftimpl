@@ -43,6 +43,11 @@ impl Peer {
         }
     }
 
+    pub fn get_id(&self) -> u64
+    {
+        self.id
+    }
+
     pub fn handle(&self) -> PeerHandle {
         PeerHandle {
             sender: self.channel_in_sender.clone()
@@ -51,8 +56,8 @@ impl Peer {
 }
 
 impl Future for Peer {
-    type Item = ();
-    type Error = ();
+    type Item = u64;
+    type Error = u64;
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
 
@@ -107,7 +112,7 @@ impl Future for Peer {
                 },
                 Err(e) => {
                     println!("node {} | peer {} | has an error, teardown.", self.raft_node_handle.get_id(), self.id);
-                    return Err(())
+                    return Err(self.id)
                 },
             }
         }
@@ -122,12 +127,12 @@ impl Future for Peer {
                     println!("node {} | peer {} | got message {:?}", self.raft_node_handle.get_id(), self.id, &message);
                     if self.channel_in_sender.try_send(PeerCommand::IncomingMessage(message)).is_err() {
                         println!("node {} | peer {} | peer has a full incoming queue, kill it.", self.raft_node_handle.get_id(), self.id);
-                        return Err(());
+                        return Err(self.id);
                     }
                 },
                 Err(e) => {
                     println!("node {} | peer {} | peer has an error, teardown.", self.raft_node_handle.get_id(), self.id);
-                    return Err(())
+                    return Err(self.id)
                 },
             }
         };
@@ -157,7 +162,7 @@ impl PeerHandle {
         }
     }
 
-    pub fn send(&mut self, command: PeerCommand) {
-        self.sender.try_send(command).expect("could not send to handle.");
+    pub fn send(&mut self, command: PeerCommand) -> Result<(), ()> {
+        self.sender.try_send(command).map_err(|_| ())
     }
 }
