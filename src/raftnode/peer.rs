@@ -22,7 +22,10 @@ pub struct Peer {
     raft_node_handle: RaftNodeHandle,
     channel_in_receiver: Receiver<PeerCommand>,
     channel_in_sender: Sender<PeerCommand>,
-    peer_stream: PeerStream
+    peer_stream: PeerStream,
+    successful_ping_requests: u64,
+    successful_ping_responses: u64,
+
 }
 
 impl Peer {
@@ -39,13 +42,23 @@ impl Peer {
             peer_stream,
             channel_in_receiver,
             channel_in_sender,
-            raft_node_handle
+            raft_node_handle,
+            successful_ping_requests: 0,
+            successful_ping_responses: 0,
         }
     }
 
     pub fn get_id(&self) -> u64
     {
         self.id
+    }
+
+    pub fn get_successful_ping_requests(&self) -> u64 {
+        self.successful_ping_requests
+    }
+
+    pub fn get_successful_ping_responses(&self) -> u64 {
+        self.successful_ping_responses
     }
 
     pub fn handle(&self) -> PeerHandle {
@@ -86,9 +99,11 @@ impl Future for Peer {
                                         .expect("could not encode msg");
 
                                     self.peer_stream.add_to_write_buffer(&bytes);
+                                    self.successful_ping_requests += 1;
                                 },
                                 ProtocolMessage::PingReponse(p) => {
                                     println!("got ping response");
+                                    self.successful_ping_responses += 1;
                                 }
                                 _ => {
                                     panic!("incoming message type not implemented: {:?}", message);

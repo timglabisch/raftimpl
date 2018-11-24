@@ -290,16 +290,21 @@ impl RaftNode {
 
                         ::futures::future::ok(peer)
                     })
-                    .and_then(move |peer| {
+                    .then(move |peer_result| {
 
-                        let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
-                        peer_map.remove(&peer.get_id());
+                        match peer_result {
+                            Ok(peer) => {
+                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
+                                peer_map.remove(&peer.get_id());
+
+                                println!("peer {} finished. had {} pings and {} results.", &peer.get_id(), &peer.get_successful_ping_requests(),  &peer.get_successful_ping_responses());
+                            },
+                            Err(_) => {
+
+                            }
+                        }
 
                         ::futures::future::ok(())
-                    })
-                    .map_err(move |_| {
-                        println!("node {} | peer killed.", config_id);
-                        ()
                     })
             );
 
