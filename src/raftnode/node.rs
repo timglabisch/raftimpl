@@ -107,7 +107,7 @@ impl RaftNode {
             config,
             raw_node,
             tcp_server: None,
-            interval: Interval::new_interval(Duration::from_millis(1000)),
+            interval: Interval::new_interval(Duration::from_millis(5000)),
             channel_in_receiver,
             channel_in_sender,
             peers: Arc::new(RwLock::new(peer_slot_map)),
@@ -173,11 +173,30 @@ impl RaftNode {
                     let peer_map = peer_map.clone();
 
                     // Spawn the future as a concurrent task.
-                    tokio::spawn(peer.then(move |_| {
-                        {
-                            let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                    tokio::spawn(peer.then(move |peer_result| {
+                        match peer_result {
+                            /*Ok(peer) => {
+                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
+                                peer_map.remove(&peer.get_id());
 
-                            peer_map.remove(&peer_id);
+                                println!("peer {} finished. had {} pings and {} results.", &peer.get_id(), &peer.get_successful_ping_requests(),  &peer.get_successful_ping_responses());
+                            },*/
+                            Ok(peer_id) => {
+                                let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                                peer_map.remove(&peer_id);
+
+                                println!("peer {} finished unsuccessful.", &peer_id);
+                            }
+                            Err(peer_id) if peer_id != 0  => {
+                                let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                                peer_map.remove(&peer_id);
+
+                                println!("peer {} finished unsuccessful.", &peer_id);
+                                return return ::futures::future::err(());
+                            }
+                            Err(_) => {
+                                return return ::futures::future::err(());
+                            }
                         }
 
                         println!("node {} | node is killed.", node_id);
@@ -252,6 +271,7 @@ impl RaftNode {
                         // tcp_stream
                         PeerInflightActive::new(stream)
                     })
+                    .map_err(|_| 0 )
                     .and_then(move |(peer_id, peer_stream)| {
 
                         let address = peer_stream.get_address().to_string();
@@ -268,7 +288,7 @@ impl RaftNode {
                             match  peer_map.get(&peer_id) {
                                 Some(ref p) => if p.has_peer() {
                                     println!("node {} | peer is already registered", config_id);
-                                    return ::futures::future::err(());
+                                    return Either::B(::futures::future::err(peer_id));
                                 },
                                 _ => {}
                             };
@@ -282,29 +302,46 @@ impl RaftNode {
                                 Err(e) => {
                                     println!("error: could not insert peer into map: {:?}", e);
 
-                                    return ::futures::future::err(());
+                                    return Either::B(::futures::future::err(peer_id));
                                 }
                             };
 
                         }
 
-                        ::futures::future::ok(peer)
+                        Either::A(peer)
                     })
                     .then(move |peer_result| {
 
                         match peer_result {
-                            Ok(peer) => {
+                            /*Ok(peer) => {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
                                 peer_map.remove(&peer.get_id());
 
                                 println!("peer {} finished. had {} pings and {} results.", &peer.get_id(), &peer.get_successful_ping_requests(),  &peer.get_successful_ping_responses());
-                            },
-                            Err(_) => {
+                            },*/
+                            Ok(peer_id) => {
+                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
+                                peer_map.remove(&peer_id);
 
+                                println!("peer {} finished unsuccessful.", &peer_id);
+                            }
+                            Err(peer_id) if peer_id != 0  => {
+                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
+                                peer_map.remove(&peer_id);
+
+                                println!("peer {} finished unsuccessful.", &peer_id);
+                                return return ::futures::future::err(());
+                            }
+                            Err(_) => {
+                                return ::futures::future::err(())
                             }
                         }
 
                         ::futures::future::ok(())
+                    })
+                    .then(move |_| {
+                        println!("node {} | peer killed.", config_id);
+                        Ok(())
                     })
             );
 

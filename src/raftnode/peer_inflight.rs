@@ -41,7 +41,7 @@ impl Future for PeerInflightActive {
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
         loop {
-            match self.stream.poll() {
+            match self.stream.as_mut().expect("could not get stream").poll() {
                 Ok(Async::NotReady) => {
                     println!("node {} | read all from Peer 2", self.get_node_id());
                     return Ok(Async::NotReady);
@@ -49,7 +49,7 @@ impl Future for PeerInflightActive {
                 Ok(Async::Ready(msg)) => {
 
                     match msg {
-                        Some(ProtocolMessage::HelloAck(m)) => {
+                        ProtocolMessage::HelloAck(m) => {
                             match self.stream.take() {
                                 Some(stream) => {
                                     return Ok(Async::Ready((m.get_request_node_id(), stream)));
@@ -60,10 +60,7 @@ impl Future for PeerInflightActive {
                                 }
                             }
                         },
-                        None => {
-                            continue;
-                        }
-                        Some(m) => {
+                        m => {
                             println!("node {} | got unsupported message {:?} while contacting node.", self.get_node_id(), m);
                             return Err(());
                         }
@@ -113,7 +110,7 @@ impl Future for PeerInflightPassiv {
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
         loop {
-            match self.stream.poll() {
+            match self.stream.as_mut().expect("could not get stream").poll() {
                 Ok(Async::NotReady) => {
                     println!("node {} | read all from Peer 2", self.get_node_id());
                     return Ok(Async::NotReady);
@@ -121,7 +118,7 @@ impl Future for PeerInflightPassiv {
                 Ok(Async::Ready(msg)) => {
 
                     match msg {
-                        Some(ProtocolMessage::Hello(m)) => {
+                        ProtocolMessage::Hello(m) => {
                             let node_id = self.get_node_id();
                             match self.stream.take() {
                                 Some(stream) => {
@@ -140,10 +137,7 @@ impl Future for PeerInflightPassiv {
                                 }
                             }
                         },
-                        None => {
-                            continue;
-                        }
-                        Some(m) => {
+                        m => {
                             println!("node {} | got unsupported message {:?} while contacting node.", self.get_node_id(), m);
                             return Err(());
                         }

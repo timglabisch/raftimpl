@@ -26,6 +26,7 @@ pub struct PeerStream {
 }
 
 impl PeerStream {
+
     pub fn new(node_id: u64, tcp_stream: TcpStream) -> PeerStream {
         let address = tcp_stream.peer_addr().expect("could not get peer_addr").to_string();
 
@@ -86,13 +87,8 @@ impl PeerStream {
     pub fn get_node_id(&self) -> u64 {
         self.node_id
     }
-}
 
-impl Future for PeerStream {
-    type Item = ProtocolMessage;
-    type Error = ();
-
-    fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
+    pub fn poll(&mut self) -> Result<Async<ProtocolMessage>, ()> {
         loop {
             match self.poll_flush() {
                 Ok(Async::Ready(_)) => {
@@ -122,13 +118,13 @@ impl Future for PeerStream {
                 Ok(Async::Ready(size)) => {
                     println!("node {} | start to read {} bytes from Peer", self.node_id, size);
 
-                    self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
-
-                    if (size == 0) { // socket is closed?
+                    if size == 0 { // socket is closed?
                         println!("node {} | peer socket is closed", self.node_id);
                         return Err(());
-                        //return Ok(Async::Ready(()));
                     }
+
+                    self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
+
                 }
                 Err(ref e) if e.kind() == WouldBlock => {
                     println!("node {} | read from peer would block", self.node_id);

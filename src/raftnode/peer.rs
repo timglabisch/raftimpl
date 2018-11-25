@@ -74,6 +74,8 @@ impl Future for Peer {
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
 
+        println!("start working on peer with {} successful_ping_responses", self.successful_ping_responses);
+
         loop {
             match self.channel_in_receiver.poll() {
                 Ok(Async::NotReady) => {
