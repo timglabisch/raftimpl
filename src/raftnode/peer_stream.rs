@@ -18,8 +18,7 @@ use tokio::prelude::future::poll_fn;
 pub struct PeerStream {
     node_id: u64,
     address: String,
-    connection_read: ReadHalf<TcpStream>,
-    connection_write: WriteHalf<TcpStream>,
+    tcp_stream: TcpStream,
     write_buffer: BytesMut,
     read_buffer: BytesMut,
     tmp_read_buffer: [u8; 4096],
@@ -30,13 +29,12 @@ impl PeerStream {
     pub fn new(node_id: u64, tcp_stream: TcpStream) -> PeerStream {
         let address = tcp_stream.peer_addr().expect("could not get peer_addr").to_string();
 
-        let (connection_read, connection_write) = tcp_stream.split();
+        //let (connection_read, connection_write) = tcp_stream.split();
 
         PeerStream {
             node_id,
             address,
-            connection_read,
-            connection_write,
+            tcp_stream,
             read_buffer: BytesMut::new(),
             write_buffer: BytesMut::new(),
             tmp_read_buffer: [0; 4096],
@@ -56,7 +54,7 @@ impl PeerStream {
         // As long as there is buffered data to write, try to write it.
         while !self.write_buffer.is_empty() {
             // Try to write some bytes to the socket
-            let n = try_ready!(self.connection_write.poll_write(&self.write_buffer));
+            let n = try_ready!(self.tcp_stream.poll_write(&self.write_buffer));
 
             // As long as the wr is not empty, a successful write should
             // never write 0 bytes.
@@ -110,7 +108,10 @@ impl PeerStream {
         }
 
         loop {
-            match self.connection_read.poll_read(&mut self.tmp_read_buffer) {
+
+            self.read_buffer.reserve(1024);
+
+            match self.tcp_stream.read_buf(&mut self.read_buffer) {
                 Ok(Async::NotReady) => {
                     println!("node {} | read all from Peer", self.node_id);
                     break;
@@ -123,7 +124,7 @@ impl PeerStream {
                         return Err(());
                     }
 
-                    self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
+                    // self.read_buffer.put_slice(&self.tmp_read_buffer[0..size]);
 
                 }
                 Err(ref e) if e.kind() == WouldBlock => {

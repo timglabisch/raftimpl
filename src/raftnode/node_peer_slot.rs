@@ -57,14 +57,20 @@ impl PeerSlotMap {
         self.slots_identifier_map.get(index)
     }
 
-    pub fn remove(&mut self, index : &u64) -> Option<NodePeerSlot>
+    pub fn remove(&mut self, index : &u64)
     {
-        self.slots_identifier_map.remove(index)
+        println!("remove peer {}", index);
+        self.slots_identifier_map.remove(index).expect("could not drop index");
     }
 
     pub fn insert(&mut self, node : NodePeerSlot) -> Result<(), ()> {
 
-        self.slots_identifier_map.insert(node.get_id(), node);
+        let node_id = node.get_id();
+
+        println!("insert peer {}", &node_id);
+        if self.slots_identifier_map.insert(node_id, node).is_some() {
+            println!("replace peer {}", &node_id);
+        }
 
         Ok(())
     }

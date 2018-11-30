@@ -244,6 +244,10 @@ impl RaftNode {
                 continue;
             }
 
+            if self.config.id == 1 {
+                continue;
+            }
+
             let address = peer.get_address().to_string();
 
             let tcp = TcpStream::connect(&address.parse().expect("could not parse peer url."));
@@ -288,7 +292,7 @@ impl RaftNode {
                             match  peer_map.get(&peer_id) {
                                 Some(ref p) => if p.has_peer() {
                                     println!("node {} | peer is already registered", config_id);
-                                    return Either::B(::futures::future::err(peer_id));
+                                    return Either::B(::futures::future::err(0));
                                 },
                                 _ => {}
                             };
