@@ -16,6 +16,16 @@ use raftnode::peer_stream::PeerStream;
 use futures::Stream;
 use protos::hello::HelloResponse;
 use protos::hello::PingResponse;
+use std::sync::Arc;
+use std::sync::RwLock;
+use std::clone::Clone;
+
+#[derive(Clone, PartialEq)]
+pub enum PeerState {
+    NoState,
+    Connecting,
+    Connected,
+}
 
 pub struct Peer {
     id : u64,
@@ -25,6 +35,7 @@ pub struct Peer {
     peer_stream: PeerStream,
     successful_ping_requests: u64,
     successful_ping_responses: u64,
+    state: PeerStateHelper // Arc<RwLock<PeerState>>
 
 }
 
@@ -45,6 +56,7 @@ impl Peer {
             raft_node_handle,
             successful_ping_requests: 0,
             successful_ping_responses: 0,
+            state: PeerStateHelper(Arc::new(RwLock::new(PeerState::NoState)))
         }
     }
 
@@ -63,8 +75,13 @@ impl Peer {
 
     pub fn handle(&self) -> PeerHandle {
         PeerHandle {
-            sender: self.channel_in_sender.clone()
+            sender: self.channel_in_sender.clone(),
+            state: self.state.clone()
         }
+    }
+
+    pub fn get_state(&self) -> PeerStateHelper {
+        self.state.clone()
     }
 }
 
@@ -170,16 +187,42 @@ pub enum PeerCommand {
 pub struct PeerHandle
 {
     sender: Sender<PeerCommand>,
+    state: PeerStateHelper
 }
 
 impl PeerHandle {
     pub fn clone(&self) -> PeerHandle {
         PeerHandle {
-            sender: self.sender.clone()
+            sender: self.sender.clone(),
+            state: self.state.clone()
         }
     }
 
     pub fn send(&mut self, command: PeerCommand) -> Result<(), ()> {
         self.sender.try_send(command).map_err(|_| ())
+    }
+
+    pub fn get_state(&self) -> PeerStateHelper {
+        self.state.clone()
+    }
+}
+
+pub struct PeerStateHelper(Arc<RwLock<PeerState>>);
+
+impl PeerStateHelper {
+    pub fn get_state(&self) -> PeerState {
+        self.0.read().expect("could not get read lock").clone()
+    }
+
+    pub fn clone(&self) -> Self {
+        PeerStateHelper(self.0.clone())
+    }
+
+    pub fn has_no_state(&self) -> bool {
+        self.get_state() == PeerState::NoState
+    }
+
+    pub fn mark_as(&self, state : PeerState) {
+        *self.0.write().expect("could not get read lock") = state
     }
 }

@@ -35,6 +35,7 @@ use raftnode::node_peer_slot::NodePeerSlot;
 use raftnode::peer_inflight::PeerInflightPassiv;
 use raftnode::peer::PeerCommand;
 use protos::hello::PingRequest;
+use std::sync::Mutex;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
