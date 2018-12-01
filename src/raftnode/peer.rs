@@ -114,8 +114,6 @@ pub struct Peer {
     channel_in_receiver: Receiver<PeerCommand>,
     channel_in_sender: Sender<PeerCommand>,
     peer_stream: PeerStream,
-    successful_ping_requests: u64,
-    successful_ping_responses: u64,
     state: PeerStateHelper,
     metrics: PeerMetricsHelper,
 }
@@ -135,8 +133,6 @@ impl Peer {
             channel_in_receiver,
             channel_in_sender,
             raft_node_handle,
-            successful_ping_requests: 0,
-            successful_ping_responses: 0,
             state: PeerStateHelper(Arc::new(RwLock::new(PeerState::NoState))),
             metrics: PeerMetricsHelper (Arc::new(RwLock::new(PeerMetrics::new())))
         }
@@ -145,14 +141,6 @@ impl Peer {
     pub fn get_id(&self) -> u64
     {
         self.id
-    }
-
-    pub fn get_successful_ping_requests(&self) -> u64 {
-        self.successful_ping_requests
-    }
-
-    pub fn get_successful_ping_responses(&self) -> u64 {
-        self.successful_ping_responses
     }
 
     pub fn handle(&self) -> PeerHandle {
@@ -173,8 +161,6 @@ impl Future for Peer {
     type Error = u64;
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
-
-        println!("start working on peer with {} successful_ping_responses", self.successful_ping_responses);
 
         loop {
             match self.channel_in_receiver.poll() {
@@ -201,11 +187,11 @@ impl Future for Peer {
                                         .expect("could not encode msg");
 
                                     self.peer_stream.add_to_write_buffer(&bytes);
-                                    self.successful_ping_requests += 1;
+                                    self.metrics.increment_ping_requests();
                                 },
                                 ProtocolMessage::PingReponse(p) => {
                                     println!("got ping response");
-                                    self.successful_ping_responses += 1;
+                                    self.metrics.increment_ping_responses();
                                 }
                                 _ => {
                                     panic!("incoming message type not implemented: {:?}", message);

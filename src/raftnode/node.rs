@@ -71,14 +71,14 @@ impl RaftNode {
         for (id, slot) in peers.read().expect("could not get read lock").iter() {
             match slot.get_peer() {
                 None => {
-                    buffer.push_str(&format!("{:?}|\t|\n", id))
+                    buffer.push_str(&format!("{:?} | Empty |\n", id))
                 }
                 Some(p) => {
 
                     let metrics = p.get_metrics().get_copy();
 
                     buffer.push_str(&format!(
-                        "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|\n",
+                        "{:?} | {:?} | {:?} | {:?} | {:?} | {:?} |\n",
                         id,
                         p.get_state().get_state(),
                         metrics.get_created_at(),
@@ -408,6 +408,7 @@ impl Future for RaftNode {
                 Ok(Async::Ready(_)) => {
                     println!("node {} | node interval is ready ...", &self.config.id);
                     self.maintain_peers();
+                    print!("\n{}\n", &self.print_debug());
                 }
                 Ok(Async::NotReady) => {
                     println!("node {} | node interval is not ready ...", &self.config.id);
