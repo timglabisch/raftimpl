@@ -20,6 +20,8 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::clone::Clone;
 use std::time::SystemTime;
+use std::ops::DerefMut;
+use std::sync::RwLockWriteGuard;
 
 #[derive(Clone, PartialEq)]
 pub enum PeerState {
@@ -47,6 +49,32 @@ impl PeerMetrics {
 }
 
 pub struct PeerMetricsHelper(Arc<RwLock<PeerMetrics>>);
+
+impl PeerMetricsHelper {
+
+    fn get_inner(&self) -> RwLockWriteGuard<PeerMetrics> {
+        self.0.write().expect("could not get inner")
+    }
+
+    pub fn update_created_at(&self) {
+        self.get_inner().created_at = Some(SystemTime::now());
+    }
+
+    pub fn update_connected_since(&self)
+    {
+        self.get_inner().connected_since = Some(SystemTime::now());
+    }
+
+    pub fn increment_ping_requests(&self)
+    {
+        self.get_inner().ping_requests += 1;
+    }
+
+    pub fn increment_ping_responses(&self)
+    {
+        self.get_inner().ping_responses += 1;
+    }
+}
 
 pub struct PeerStateHelper(Arc<RwLock<PeerState>>);
 
