@@ -23,13 +23,14 @@ use std::time::SystemTime;
 use std::ops::DerefMut;
 use std::sync::RwLockWriteGuard;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum PeerState {
     NoState,
     Connecting,
     Connected,
 }
 
+#[derive(Clone, Debug)]
 pub struct PeerMetrics {
     created_at: Option<SystemTime>,
     connected_since: Option<SystemTime>,
@@ -46,11 +47,40 @@ impl PeerMetrics {
             ping_responses: 0
         }
     }
+
+    pub fn get_created_at(&self) -> &Option<SystemTime>
+    {
+        &self.created_at
+    }
+
+    pub fn get_connected_since(&self) -> &Option<SystemTime>
+    {
+        &self.connected_since
+    }
+
+    pub fn get_ping_requests(&self) -> u64
+    {
+        self.ping_requests
+    }
+
+    pub fn get_ping_responses(&self) -> u64
+    {
+        self.ping_responses
+    }
 }
 
 pub struct PeerMetricsHelper(Arc<RwLock<PeerMetrics>>);
 
 impl PeerMetricsHelper {
+
+    pub fn clone(&self) -> Self {
+        PeerMetricsHelper(self.0.clone())
+    }
+
+    pub fn get_copy(&self) -> PeerMetrics
+    {
+        self.get_inner().clone()
+    }
 
     fn get_inner(&self) -> RwLockWriteGuard<PeerMetrics> {
         self.0.write().expect("could not get inner")
@@ -128,7 +158,8 @@ impl Peer {
     pub fn handle(&self) -> PeerHandle {
         PeerHandle {
             sender: self.channel_in_sender.clone(),
-            state: self.state.clone()
+            state: self.state.clone(),
+            metrics: self.metrics.clone(),
         }
     }
 
@@ -239,14 +270,16 @@ pub enum PeerCommand {
 pub struct PeerHandle
 {
     sender: Sender<PeerCommand>,
-    state: PeerStateHelper
+    state: PeerStateHelper,
+    metrics: PeerMetricsHelper
 }
 
 impl PeerHandle {
     pub fn clone(&self) -> PeerHandle {
         PeerHandle {
             sender: self.sender.clone(),
-            state: self.state.clone()
+            state: self.state.clone(),
+            metrics: self.metrics.clone()
         }
     }
 
@@ -256,6 +289,10 @@ impl PeerHandle {
 
     pub fn get_state(&self) -> PeerStateHelper {
         self.state.clone()
+    }
+
+    pub fn get_metrics(&self) -> PeerMetricsHelper {
+        self.metrics.clone()
     }
 }
 

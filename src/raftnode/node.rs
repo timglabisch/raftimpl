@@ -62,6 +62,37 @@ impl RaftNode {
         }
     }
 
+    pub fn print_debug(&self) -> String
+    {
+        let mut buffer = String::new();
+
+        let peers = self.peers.clone();
+
+        for (id, slot) in peers.read().expect("could not get read lock").iter() {
+            match slot.get_peer() {
+                None => {
+                    buffer.push_str(&format!("{:?}|\t|\n", id))
+                }
+                Some(p) => {
+
+                    let metrics = p.get_metrics().get_copy();
+
+                    buffer.push_str(&format!(
+                        "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|\n",
+                        id,
+                        p.get_state().get_state(),
+                        metrics.get_created_at(),
+                        metrics.get_connected_since(),
+                        metrics.get_ping_requests(),
+                        metrics.get_ping_responses(),
+                    ))
+                }
+            }
+        }
+
+        buffer
+    }
+
     pub fn new(node_id: u64) -> Self {
         let storage = MemStorage::new();
 
