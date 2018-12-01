@@ -19,6 +19,7 @@ use protos::hello::PingResponse;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::clone::Clone;
+use std::time::SystemTime;
 
 #[derive(Clone, PartialEq)]
 pub enum PeerState {
@@ -26,6 +27,28 @@ pub enum PeerState {
     Connecting,
     Connected,
 }
+
+pub struct PeerMetrics {
+    created_at: Option<SystemTime>,
+    connected_since: Option<SystemTime>,
+    ping_requests: u64,
+    ping_responses: u64
+}
+
+impl PeerMetrics {
+    pub fn new() -> Self {
+        PeerMetrics {
+            created_at: None,
+            connected_since: None,
+            ping_requests: 0,
+            ping_responses: 0
+        }
+    }
+}
+
+pub struct PeerMetricsHelper(Arc<RwLock<PeerMetrics>>);
+
+pub struct PeerStateHelper(Arc<RwLock<PeerState>>);
 
 pub struct Peer {
     id : u64,
@@ -35,8 +58,8 @@ pub struct Peer {
     peer_stream: PeerStream,
     successful_ping_requests: u64,
     successful_ping_responses: u64,
-    state: PeerStateHelper // Arc<RwLock<PeerState>>
-
+    state: PeerStateHelper,
+    metrics: PeerMetricsHelper,
 }
 
 impl Peer {
@@ -56,7 +79,8 @@ impl Peer {
             raft_node_handle,
             successful_ping_requests: 0,
             successful_ping_responses: 0,
-            state: PeerStateHelper(Arc::new(RwLock::new(PeerState::NoState)))
+            state: PeerStateHelper(Arc::new(RwLock::new(PeerState::NoState))),
+            metrics: PeerMetricsHelper (Arc::new(RwLock::new(PeerMetrics::new())))
         }
     }
 
@@ -207,7 +231,6 @@ impl PeerHandle {
     }
 }
 
-pub struct PeerStateHelper(Arc<RwLock<PeerState>>);
 
 impl PeerStateHelper {
     pub fn get_state(&self) -> PeerState {
