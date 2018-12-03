@@ -213,13 +213,13 @@ impl RaftNode {
 
                                 println!("peer {} finished. had {} pings and {} results.", &peer.get_id(), &peer.get_successful_ping_requests(),  &peer.get_successful_ping_responses());
                             },*/
-                            Ok(peer_id) => {
+                            Ok(peer_ident) => {
                                 let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
                                 peer_map.remove(&peer_id);
 
                                 println!("peer {} finished unsuccessful.", &peer_id);
                             }
-                            Err(peer_id) if peer_id != 0  => {
+                            Err(peer_ident) if peer_ident != 0  => {
                                 let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
                                 peer_map.remove(&peer_id);
 
@@ -241,6 +241,16 @@ impl RaftNode {
             });
 
         self.tcp_server = Some(Box::new(server));
+    }
+
+    pub fn rand_try_to_contact_to_peer(&self) -> bool
+    {
+        use ::rand::Rng;
+
+        let mut rng = ::rand::thread_rng();
+        let y: f64 = rng.gen();
+
+        y < 0.10
     }
 
     pub fn maintain_peers(&mut self)
@@ -277,6 +287,10 @@ impl RaftNode {
             }
 
             if self.config.id == 1 {
+                continue;
+            }
+
+            if (!self.rand_try_to_contact_to_peer()) {
                 continue;
             }
 

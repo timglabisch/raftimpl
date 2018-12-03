@@ -22,6 +22,9 @@ use std::clone::Clone;
 use std::time::SystemTime;
 use std::ops::DerefMut;
 use std::sync::RwLockWriteGuard;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+const PEER_UNIQUE : AtomicUsize  = AtomicUsize::new(0);
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum PeerState {
@@ -109,7 +112,7 @@ impl PeerMetricsHelper {
 pub struct PeerStateHelper(Arc<RwLock<PeerState>>);
 
 pub struct Peer {
-    id : u64,
+    ident: PeerIdent,
     raft_node_handle: RaftNodeHandle,
     channel_in_receiver: Receiver<PeerCommand>,
     channel_in_sender: Sender<PeerCommand>,
@@ -119,6 +122,7 @@ pub struct Peer {
 }
 
 impl Peer {
+
     pub fn new(
         id : u64,
         raft_node_handle: RaftNodeHandle,
@@ -127,8 +131,15 @@ impl Peer {
 
         let (channel_in_sender, channel_in_receiver) = channel::<PeerCommand>(100);
 
-        Peer {
+        let unique_idenfificator = PEER_UNIQUE.fetch_add(1, Ordering::SeqCst);
+
+        let ident = PeerIdent {
             id,
+            unique_identifier
+        };
+
+        Peer {
+            ident,
             peer_stream,
             channel_in_receiver,
             channel_in_sender,
@@ -140,11 +151,16 @@ impl Peer {
 
     pub fn get_id(&self) -> u64
     {
-        self.id
+        self.ident.get_id()
+    }
+
+    pub fn get_unique_idenfificator(&self) -> usize {
+        self.unique_idenfificator
     }
 
     pub fn handle(&self) -> PeerHandle {
         PeerHandle {
+            ident: self.ident.clone(),
             sender: self.channel_in_sender.clone(),
             state: self.state.clone(),
             metrics: self.metrics.clone(),
@@ -154,11 +170,53 @@ impl Peer {
     pub fn get_state(&self) -> PeerStateHelper {
         self.state.clone()
     }
+
+    pub fn get_ident(&self) -> &PeerIdent {
+        &self.ident
+    }
 }
 
+#[derive(PartialEq, Clone)]
+pub struct PeerIdent {
+    id: u64,
+    unique_identifier: usize
+}
+
+impl PeerIdent {
+    pub fn new(p : &Peer) -> Self {
+        PeerIdent {
+            id: p.get_id(),
+            unique_identifier: p.get_unique_idenfificator()
+        }
+    }
+
+    pub fn new_anon() -> Self
+    {
+        PeerIdent {
+            id: 0,
+            unique_identifier: 0
+        }
+    }
+
+    pub fn is_anon(&self) -> bool {
+        self.id == 0 && self.unique_identifier == 0
+    }
+
+    pub fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn get_unique_identifier(&self) -> usize
+    {
+        self.unique_identifier
+    }
+}
+
+
+
 impl Future for Peer {
-    type Item = u64;
-    type Error = u64;
+    type Item = PeerIdent;
+    type Error = PeerIdent;
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
 
@@ -215,7 +273,7 @@ impl Future for Peer {
                 },
                 Err(e) => {
                     println!("node {} | peer {} | has an error, teardown.", self.raft_node_handle.get_id(), self.id);
-                    return Err(self.id)
+                    return Err(PeerIdent::new(&self))
                 },
             }
         }
@@ -230,18 +288,18 @@ impl Future for Peer {
                     println!("node {} | peer {} | got message {:?}", self.raft_node_handle.get_id(), self.id, &message);
                     if self.channel_in_sender.try_send(PeerCommand::IncomingMessage(message)).is_err() {
                         println!("node {} | peer {} | peer has a full incoming queue, kill it.", self.raft_node_handle.get_id(), self.id);
-                        return Err(self.id);
+                        return Err(PeerIdent::new(&self));
                     }
                 },
                 Err(e) => {
                     println!("node {} | peer {} | peer has an error, teardown.", self.raft_node_handle.get_id(), self.id);
-                    return Err(self.id)
+                    return Err(PeerIdent::new(&self))
                 },
             }
         };
 
 
-        println!("node {} | peer {} | peer done", self.raft_node_handle.get_id(), self.id);
+        //println!("node {} | peer {} | peer done", self.raft_node_handle.get_id(), self.id);
 
         return Ok(Async::NotReady);
     }
@@ -255,6 +313,7 @@ pub enum PeerCommand {
 
 pub struct PeerHandle
 {
+    ident: PeerIdent,
     sender: Sender<PeerCommand>,
     state: PeerStateHelper,
     metrics: PeerMetricsHelper
@@ -263,6 +322,7 @@ pub struct PeerHandle
 impl PeerHandle {
     pub fn clone(&self) -> PeerHandle {
         PeerHandle {
+            ident: self.ident.clone(),
             sender: self.sender.clone(),
             state: self.state.clone(),
             metrics: self.metrics.clone()
@@ -279,6 +339,10 @@ impl PeerHandle {
 
     pub fn get_metrics(&self) -> PeerMetricsHelper {
         self.metrics.clone()
+    }
+
+    pub fn get_ident(&self) -> &PeerIdent {
+        &self.ident
     }
 }
 

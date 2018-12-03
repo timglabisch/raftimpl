@@ -10,6 +10,7 @@ futures = "0.1.*"
 bytes = "*"
 byteorder = "1"
 protobuf = "2.0.4"
+rand = "*"
 
 [build-dependencies]
 protoc-rust = "2.0"

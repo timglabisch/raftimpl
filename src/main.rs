@@ -8,6 +8,7 @@ extern crate futures;
 extern crate bytes;
 extern crate byteorder;
 extern crate protobuf;
+extern crate rand;
 
 use raftnode::node::RaftNode;
 use futures::select_all;
