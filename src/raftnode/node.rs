@@ -373,13 +373,13 @@ impl RaftNode {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
                                 peer_map.remove(&peer_id);
 
-                                println!("peer {} finished unsuccessful.", &peer_id);
+                                println!("peer {:?} finished unsuccessful.", &peer_id);
                             }
                             Err(peer_id) if peer_id != 0  => {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
                                 peer_map.remove(&peer_id);
 
-                                println!("peer {} finished unsuccessful.", &peer_id);
+                                println!("peer {:?} finished unsuccessful.", &peer_id);
                                 return return ::futures::future::err(());
                             }
                             Err(_) => {

@@ -38,7 +38,7 @@ impl NodePeerSlot {
 }
 
 pub struct PeerSlotMap {
-    slots_identifier_map: HashMap<u64, NodePeerSlot>
+    slots_identifier_map: HashMap<PeerIdent, NodePeerSlot>
 }
 
 impl PeerSlotMap {
@@ -49,28 +49,28 @@ impl PeerSlotMap {
         }
     }
 
-    pub fn iter(&self) -> Iter<u64, NodePeerSlot> {
+    pub fn iter(&self) -> Iter<PeerIdent, NodePeerSlot> {
         self.slots_identifier_map.iter()
     }
 
-    pub fn get(&self, index : &u64) -> Option<&NodePeerSlot>
+    pub fn get(&self, peer_ident : &PeerIdent) -> Option<&NodePeerSlot>
     {
-        self.slots_identifier_map.get(index)
+        self.slots_identifier_map.get(peer_ident)
     }
 
-    pub fn remove(&mut self, index : &u64)
+    pub fn remove(&mut self, peer_ident : &PeerIdent)
     {
-        println!("remove peer {}", index);
-        self.slots_identifier_map.remove(index).expect("could not drop index");
+        println!("remove peer {:?}", peer_ident);
+        self.slots_identifier_map.remove(peer_ident).expect("could not drop index");
     }
 
     pub fn insert(&mut self, node : NodePeerSlot) -> Result<(), ()> {
 
-        let node_id = node.get_id();
+        let peer_ident = node.get_ident().clone();
 
-        println!("insert peer {}", &node_id);
-        if self.slots_identifier_map.insert(node_id, node).is_some() {
-            println!("replace peer {}", &node_id);
+        println!("insert peer {:?}", &node_id);
+        if self.slots_identifier_map.insert(peer_ident, node).is_some() {
+            println!("replace peer {:?}", &node_id);
         }
 
         Ok(())

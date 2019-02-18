@@ -165,7 +165,7 @@ impl Peer {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct PeerIdent {
     id: u64,
     unique_identifier: usize
