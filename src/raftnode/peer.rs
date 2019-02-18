@@ -174,10 +174,10 @@ pub struct PeerIdent {
 impl PeerIdent {
     pub fn new(id : u64) -> Self {
 
-        let unique_idenfificator = PEER_UNIQUE.fetch_add(1, Ordering::SeqCst);
+        let unique_identifier = PEER_UNIQUE.fetch_add(1, Ordering::SeqCst);
 
         PeerIdent {
-            id: p.get_id(),
+            id,
             unique_identifier
         }
     }

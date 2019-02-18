@@ -36,6 +36,7 @@ use raftnode::peer_inflight::PeerInflightPassiv;
 use raftnode::peer::PeerCommand;
 use protos::hello::PingRequest;
 use std::sync::Mutex;
+use raftnode::peer::PeerIdent;
 
 pub struct RaftNode {
     peer_counter: Arc<AtomicUsize>,
@@ -130,8 +131,8 @@ impl RaftNode {
         let (channel_in_sender, channel_in_receiver) = channel::<RaftNodeCommand>(100);
 
         let mut peer_slot_map = PeerSlotMap::new();
-        peer_slot_map.insert(NodePeerSlot::new(1, "127.0.0.1:2001".into(), None));
-        peer_slot_map.insert(NodePeerSlot::new(2, "127.0.0.1:2002".into(), None));
+        peer_slot_map.insert(NodePeerSlot::new(PeerIdent::new(1), "127.0.0.1:2001".into(), None));
+        peer_slot_map.insert(NodePeerSlot::new(PeerIdent::new(2), "127.0.0.1:2002".into(), None));
         // peer_slot_map.insert(NodePeerSlot::new(3, "127.0.0.1:2003".into(), None));
 
         RaftNode {
@@ -215,15 +216,15 @@ impl RaftNode {
                             },*/
                             Ok(peer_ident) => {
                                 let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer_id);
+                                peer_map.remove(&peer_ident);
 
-                                println!("peer {} finished unsuccessful.", &peer_id);
+                                println!("peer {:?} finished unsuccessful.", &peer_ident);
                             }
-                            Err(peer_ident) if peer_ident != 0  => {
+                            Err(peer_ident) if !peer_ident.is_anon()  => {
                                 let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer_id);
+                                peer_map.remove(&peer_ident);
 
-                                println!("peer {} finished unsuccessful.", &peer_id);
+                                println!("peer {:?} finished unsuccessful.", &peer_ident);
                                 return return ::futures::future::err(());
                             }
                             Err(_) => {
@@ -231,7 +232,7 @@ impl RaftNode {
                             }
                         }
 
-                        println!("node {} | node is killed.", node_id);
+                        println!("node {:?} | node is killed.", peer_ident);
 
                         ::futures::future::ok(())
                     }))
@@ -321,7 +322,7 @@ impl RaftNode {
                         // tcp_stream
                         PeerInflightActive::new(stream)
                     })
-                    .map_err(|_| 0 )
+                    .map_err(|_| Err(PeerIdent::new_anon()) )
                     .and_then(move |(peer_ident, peer_stream)| {
 
                         let address = peer_stream.get_address().to_string();
@@ -335,16 +336,16 @@ impl RaftNode {
                         {
                             let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
 
-                            match  peer_map.get(&peer_id) {
+                            match  peer_map.get(&peer_ident) {
                                 Some(ref p) => if p.has_peer() {
                                     println!("node {} | peer is already registered", config_id);
-                                    return Either::B(::futures::future::err(0));
+                                    return Either::B(::futures::future::err(peer_ident.clone()));
                                 },
                                 _ => {}
                             };
 
                             match peer_map.insert(NodePeerSlot::new(
-                                peer_id,
+                                peer_ident,
                                 address,
                                 Some(peer.handle())
                             )) {
@@ -352,7 +353,7 @@ impl RaftNode {
                                 Err(e) => {
                                     println!("error: could not insert peer into map: {:?}", e);
 
-                                    return Either::B(::futures::future::err(peer_id));
+                                    return Either::B(::futures::future::err(peer_ident.clone()));
                                 }
                             };
 
@@ -363,33 +364,27 @@ impl RaftNode {
                     .then(move |peer_result| {
 
                         match peer_result {
-                            /*Ok(peer) => {
+                            Ok(peer_ident) => {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer.get_id());
+                                peer_map.remove(&peer_ident);
 
-                                println!("peer {} finished. had {} pings and {} results.", &peer.get_id(), &peer.get_successful_ping_requests(),  &peer.get_successful_ping_responses());
-                            },*/
-                            Ok(peer_id) => {
-                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer_id);
+                                println!("peer {:?} finished unsuccessful.", &peer_ident);
+                                ::futures::future::ok(peer_ident)
 
-                                println!("peer {:?} finished unsuccessful.", &peer_id);
                             }
-                            Err(peer_id) if peer_id != 0  => {
+                            Err(peer_ident) if !peer_ident.is_anon()  => {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer_id);
+                                peer_map.remove(&peer_ident);
 
-                                println!("peer {:?} finished unsuccessful.", &peer_id);
-                                return return ::futures::future::err(());
+                                println!("peer {:?} finished unsuccessful.", &peer_ident);
+                                ::futures::future::err(peer_ident)
                             }
-                            Err(_) => {
-                                return ::futures::future::err(())
+                            Err(peer_ident) => {
+                                ::futures::future::err(peer_ident)
                             }
                         }
-
-                        ::futures::future::ok(())
                     })
-                    .then(move |_| {
+                    .then(move |peer_result| {
                         println!("node {} | peer killed.", config_id);
                         Ok(())
                     })
