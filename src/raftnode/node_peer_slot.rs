@@ -2,24 +2,25 @@ use raftnode::peer::Peer;
 use std::collections::HashMap;
 use std::collections::hash_map::Iter;
 use raftnode::peer::PeerHandle;
+use raftnode::peer::PeerIdent;
 
 pub struct NodePeerSlot {
     peer: Option<PeerHandle>,
     address: String,
-    peer_id: u64
+    peer_ident: PeerIdent
 }
 
 impl NodePeerSlot {
-    pub fn new(peer_id: u64, address : String, handle : Option<PeerHandle>) -> Self {
+    pub fn new(peer_ident: PeerIdent, address : String, handle : Option<PeerHandle>) -> Self {
         NodePeerSlot {
             peer: handle,
             address,
-            peer_id
+            peer_ident
         }
     }
 
-    pub fn get_id(&self) -> u64 {
-        self.peer_id
+    pub fn get_ident(&self) -> &PeerIdent {
+        &self.peer_ident
     }
 
     pub fn get_address(&self) -> &str { &self.address }

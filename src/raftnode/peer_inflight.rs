@@ -9,6 +9,7 @@ use raftnode::peer::Peer;
 use raftnode::protocol::ProtocolMessage;
 use tokio::io::ErrorKind::WouldBlock;
 use protos::hello::{HelloRequest, HelloResponse};
+use raftnode::peer::PeerIdent;
 
 
 pub struct PeerInflightActive {
@@ -36,7 +37,7 @@ impl PeerInflightActive {
 
 impl Future for PeerInflightActive {
 
-    type Item = (u64, PeerStream);
+    type Item = (PeerIdent, PeerStream);
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
@@ -52,7 +53,7 @@ impl Future for PeerInflightActive {
                         ProtocolMessage::HelloAck(m) => {
                             match self.stream.take() {
                                 Some(stream) => {
-                                    return Ok(Async::Ready((m.get_request_node_id(), stream)));
+                                    return Ok(Async::Ready((PeerIdent::new(m.get_request_node_id()), stream)));
                                 },
                                 None => {
                                     println!("node {}, got multiple acks, this is a protocol violation.", self.get_node_id());
@@ -105,7 +106,7 @@ impl PeerInflightPassiv {
 
 impl Future for PeerInflightPassiv {
 
-    type Item = (u64, PeerStream);
+    type Item = (PeerIdent, PeerStream);
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<<Self as Future>::Item>, <Self as Future>::Error> {
@@ -129,7 +130,7 @@ impl Future for PeerInflightPassiv {
                                     hello_response.set_request_node_id(m.get_node_id());
 
                                     let stream = stream.with_hello_message(ProtocolMessage::HelloAck(hello_response));
-                                    return Ok(Async::Ready((m.get_node_id(), stream)));
+                                    return Ok(Async::Ready((PeerIdent::new(m.get_node_id()), stream)));
                                 },
                                 None => {
                                     println!("node {}, got multiple hello's, this is a protocol violation.", self.get_node_id());

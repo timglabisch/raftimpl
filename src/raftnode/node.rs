@@ -180,12 +180,12 @@ impl RaftNode {
                 let peer_map = peer_map.clone();
 
                 PeerInflightPassiv::new(stream)
-                    .and_then(move |(peer_id, peer_stream)|{
+                    .and_then(move |(peer_ident, peer_stream)|{
 
                     let address = peer_stream.get_address().to_string();
 
                     let peer = Peer::new(
-                        peer_id,
+                        peer_ident,
                         raft_node_handle.clone(),
                         peer_stream,
                     );
@@ -195,7 +195,7 @@ impl RaftNode {
 
                         peer_map.insert(
                             NodePeerSlot::new(
-                                peer_id,
+                                peer_ident,
                                 address,
                                 Some(peer.handle())
                             )
@@ -265,10 +265,10 @@ impl RaftNode {
 
                     let mut ping_request = PingRequest::new();
                     ping_request.set_request_node_id(self.config.id);
-                    ping_request.set_response_node_id(peer.get_id());
+                    ping_request.set_response_node_id(peer.get_ident().get_id());
 
                     match p.send(PeerCommand::OutgoingMessage(ProtocolMessage::PingRequest(ping_request))) {
-                        Err(_) => { println!("node {} | could not send to peer {}", self.config.id, peer.get_id()); },
+                        Err(_) => { println!("node {} | could not send to peer {}", self.config.id, peer.get_ident().get_id()); },
                         _ => {}
                     }
 
@@ -281,7 +281,7 @@ impl RaftNode {
 
 
             // we dont try to connect to us.
-            if &self.config.id == &peer.get_id() {
+            if &self.config.id == &peer.get_ident().get_id() {
                 //println!("node already is self.");
                 continue;
             }
@@ -322,12 +322,12 @@ impl RaftNode {
                         PeerInflightActive::new(stream)
                     })
                     .map_err(|_| 0 )
-                    .and_then(move |(peer_id, peer_stream)| {
+                    .and_then(move |(peer_ident, peer_stream)| {
 
                         let address = peer_stream.get_address().to_string();
 
                         let peer = Peer::new(
-                            peer_id,
+                            peer_ident,
                             raft_node_handle.clone(),
                             peer_stream,
                         );

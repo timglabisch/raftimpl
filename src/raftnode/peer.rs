@@ -124,19 +124,12 @@ pub struct Peer {
 impl Peer {
 
     pub fn new(
-        id : u64,
+        ident : PeerIdent,
         raft_node_handle: RaftNodeHandle,
         peer_stream : PeerStream
     ) -> Self {
 
         let (channel_in_sender, channel_in_receiver) = channel::<PeerCommand>(100);
-
-        let unique_idenfificator = PEER_UNIQUE.fetch_add(1, Ordering::SeqCst);
-
-        let ident = PeerIdent {
-            id,
-            unique_identifier
-        };
 
         Peer {
             ident,
@@ -152,10 +145,6 @@ impl Peer {
     pub fn get_id(&self) -> u64
     {
         self.ident.get_id()
-    }
-
-    pub fn get_unique_idenfificator(&self) -> usize {
-        self.unique_idenfificator
     }
 
     pub fn handle(&self) -> PeerHandle {
@@ -183,10 +172,13 @@ pub struct PeerIdent {
 }
 
 impl PeerIdent {
-    pub fn new(p : &Peer) -> Self {
+    pub fn new(id : u64) -> Self {
+
+        let unique_idenfificator = PEER_UNIQUE.fetch_add(1, Ordering::SeqCst);
+
         PeerIdent {
             id: p.get_id(),
-            unique_identifier: p.get_unique_idenfificator()
+            unique_identifier
         }
     }
 
@@ -223,14 +215,14 @@ impl Future for Peer {
         loop {
             match self.channel_in_receiver.poll() {
                 Ok(Async::NotReady) => {
-                    println!("node {} | peer {} | no command from node from peer", self.raft_node_handle.get_id(), self.id);
+                    println!("node {} | peer {} | no command from node from peer", self.raft_node_handle.get_id(), self.ident.get_id());
                     break;
                 },
                 Ok(Async::Ready(None)) => {
                     // just go on
                 },
                 Ok(Async::Ready(Some(ref command))) => {
-                    println!("node {} | peer {} | got command {:?}", self.raft_node_handle.get_id(), self.id, command);
+                    println!("node {} | peer {} | got command {:?}", self.raft_node_handle.get_id(), self.ident.get_id(), command);
 
                     match command {
                         &PeerCommand::IncomingMessage(ref message) => {
@@ -272,8 +264,8 @@ impl Future for Peer {
                     };
                 },
                 Err(e) => {
-                    println!("node {} | peer {} | has an error, teardown.", self.raft_node_handle.get_id(), self.id);
-                    return Err(PeerIdent::new(&self))
+                    println!("node {} | peer {} | has an error, teardown.", self.raft_node_handle.get_id(), self.ident.get_id());
+                    return Err(self.ident.clone())
                 },
             }
         }
@@ -281,19 +273,19 @@ impl Future for Peer {
         loop {
             match self.peer_stream.poll() {
                 Ok(Async::NotReady) => {
-                    println!("node {} | peer {} | read all from Peer", self.raft_node_handle.get_id(), self.id);
+                    println!("node {} | peer {} | read all from Peer", self.raft_node_handle.get_id(), self.ident.get_id());
                     break;
                 },
                 Ok(Async::Ready(message)) => {
-                    println!("node {} | peer {} | got message {:?}", self.raft_node_handle.get_id(), self.id, &message);
+                    println!("node {} | peer {} | got message {:?}", self.raft_node_handle.get_id(), self.ident.get_id(), &message);
                     if self.channel_in_sender.try_send(PeerCommand::IncomingMessage(message)).is_err() {
-                        println!("node {} | peer {} | peer has a full incoming queue, kill it.", self.raft_node_handle.get_id(), self.id);
-                        return Err(PeerIdent::new(&self));
+                        println!("node {} | peer {} | peer has a full incoming queue, kill it.", self.raft_node_handle.get_id(), self.ident.get_id());
+                        return Err(self.ident.clone());
                     }
                 },
                 Err(e) => {
-                    println!("node {} | peer {} | peer has an error, teardown.", self.raft_node_handle.get_id(), self.id);
-                    return Err(PeerIdent::new(&self))
+                    println!("node {} | peer {} | peer has an error, teardown.", self.raft_node_handle.get_id(), self.ident.get_id());
+                    return Err(self.ident.clone())
                 },
             }
         };
