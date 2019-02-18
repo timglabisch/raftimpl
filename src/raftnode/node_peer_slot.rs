@@ -69,7 +69,7 @@ impl PeerSlotMap {
         let peer_ident = node.get_ident().clone();
 
         println!("insert peer {:?}", &peer_ident);
-        if self.slots_identifier_map.insert(peer_ident, node).is_some() {
+        if self.slots_identifier_map.insert(peer_ident.clone(), node).is_some() {
             println!("replace peer {:?}", &peer_ident);
         }
 

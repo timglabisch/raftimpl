@@ -186,7 +186,7 @@ impl RaftNode {
                     let address = peer_stream.get_address().to_string();
 
                     let peer = Peer::new(
-                        peer_ident,
+                        peer_ident.clone(),
                         raft_node_handle.clone(),
                         peer_stream,
                     );
@@ -232,7 +232,7 @@ impl RaftNode {
                             }
                         }
 
-                        println!("node {:?} | node is killed.", peer_ident);
+                        //println!("node {:?} | node is killed.", peer_ident);
 
                         ::futures::future::ok(())
                     }))
@@ -328,7 +328,7 @@ impl RaftNode {
                         let address = peer_stream.get_address().to_string();
 
                         let peer = Peer::new(
-                            peer_ident,
+                            peer_ident.clone(),
                             raft_node_handle.clone(),
                             peer_stream,
                         );
@@ -345,7 +345,7 @@ impl RaftNode {
                             };
 
                             match peer_map.insert(NodePeerSlot::new(
-                                peer_ident,
+                                peer_ident.clone(),
                                 address,
                                 Some(peer.handle())
                             )) {
@@ -369,18 +369,18 @@ impl RaftNode {
                                 peer_map.remove(&peer_ident);
 
                                 println!("peer {:?} finished unsuccessful.", peer_ident);
-                                ::futures::future::ok(peer_ident)
+                                ::futures::future::ok(peer_ident.clone())
 
                             }
                             Err(ref peer_ident) if !peer_ident.is_anon()  => {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer_ident);
+                                peer_map.remove(peer_ident);
 
                                 println!("peer {:?} finished unsuccessful.", peer_ident);
-                                ::futures::future::err(peer_ident)
+                                ::futures::future::err(peer_ident.clone())
                             }
                             Err(ref peer_ident) => {
-                                ::futures::future::err(peer_ident)
+                                ::futures::future::err(peer_ident.clone())
                             }
                         }
                     })
