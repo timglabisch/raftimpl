@@ -214,17 +214,17 @@ impl RaftNode {
 
                                 println!("peer {} finished. had {} pings and {} results.", &peer.get_id(), &peer.get_successful_ping_requests(),  &peer.get_successful_ping_responses());
                             },*/
-                            Ok(peer_ident) => {
+                            Ok(ref peer_ident) => {
                                 let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer_ident);
+                                peer_map.remove(peer_ident);
 
                                 println!("peer {:?} finished unsuccessful.", &peer_ident);
                             }
-                            Err(peer_ident) if !peer_ident.is_anon()  => {
+                            Err(ref peer_ident) if !peer_ident.is_anon()  => {
                                 let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
-                                peer_map.remove(&peer_ident);
+                                peer_map.remove(peer_ident);
 
-                                println!("peer {:?} finished unsuccessful.", &peer_ident);
+                                println!("peer {:?} finished unsuccessful.", peer_ident);
                                 return return ::futures::future::err(());
                             }
                             Err(_) => {
@@ -322,7 +322,7 @@ impl RaftNode {
                         // tcp_stream
                         PeerInflightActive::new(stream)
                     })
-                    .map_err(|_| Err(PeerIdent::new_anon()) )
+                    .map_err(|_| PeerIdent::new_anon() )
                     .and_then(move |(peer_ident, peer_stream)| {
 
                         let address = peer_stream.get_address().to_string();
@@ -364,22 +364,22 @@ impl RaftNode {
                     .then(move |peer_result| {
 
                         match peer_result {
-                            Ok(peer_ident) => {
+                            Ok(ref peer_ident) => {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
                                 peer_map.remove(&peer_ident);
 
-                                println!("peer {:?} finished unsuccessful.", &peer_ident);
+                                println!("peer {:?} finished unsuccessful.", peer_ident);
                                 ::futures::future::ok(peer_ident)
 
                             }
-                            Err(peer_ident) if !peer_ident.is_anon()  => {
+                            Err(ref peer_ident) if !peer_ident.is_anon()  => {
                                 let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
                                 peer_map.remove(&peer_ident);
 
-                                println!("peer {:?} finished unsuccessful.", &peer_ident);
+                                println!("peer {:?} finished unsuccessful.", peer_ident);
                                 ::futures::future::err(peer_ident)
                             }
-                            Err(peer_ident) => {
+                            Err(ref peer_ident) => {
                                 ::futures::future::err(peer_ident)
                             }
                         }
