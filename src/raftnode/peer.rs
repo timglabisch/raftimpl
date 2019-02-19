@@ -24,7 +24,7 @@ use std::ops::DerefMut;
 use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const PEER_UNIQUE : AtomicUsize  = AtomicUsize::new(0);
+static PEER_UNIQUE : AtomicUsize  = AtomicUsize::new(1);
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum PeerState {

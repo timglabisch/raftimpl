@@ -60,7 +60,7 @@ impl PeerSlotMap {
 
     pub fn remove(&mut self, peer_ident : &PeerIdent)
     {
-        println!("remove peer {:?}", peer_ident);
+        println!("peer_map | remove peer {:?}", peer_ident);
         self.slots_identifier_map.remove(peer_ident).expect("could not drop index");
     }
 
@@ -68,9 +68,9 @@ impl PeerSlotMap {
 
         let peer_ident = node.get_ident().clone();
 
-        println!("insert peer {:?}", &peer_ident);
+        println!("peer_map | insert peer {:?}", &peer_ident);
         if self.slots_identifier_map.insert(peer_ident.clone(), node).is_some() {
-            println!("replace peer {:?}", &peer_ident);
+            println!("peer_map | replace peer {:?}", &peer_ident);
         }
 
         Ok(())
