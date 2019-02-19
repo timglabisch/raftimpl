@@ -192,7 +192,7 @@ impl RaftNode {
                     );
 
                     {
-                        let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                        let mut peer_map = peer_map.deref().write().expect("could not get peer write lock #1");
 
                         peer_map.insert(
                             NodePeerSlot::new(
@@ -215,13 +215,13 @@ impl RaftNode {
                                 println!("peer {} finished. had {} pings and {} results.", &peer.get_id(), &peer.get_successful_ping_requests(),  &peer.get_successful_ping_responses());
                             },*/
                             Ok(ref peer_ident) => {
-                                let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                                let mut peer_map = peer_map.deref().write().expect("could not get peer write lock #2");
                                 peer_map.remove(peer_ident);
 
                                 println!("peer {:?} finished unsuccessful.", &peer_ident);
                             }
                             Err(ref peer_ident) if !peer_ident.is_anon()  => {
-                                let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                                let mut peer_map = peer_map.deref().write().expect("could not get peer write lock #3");
                                 peer_map.remove(peer_ident);
 
                                 println!("peer {:?} finished unsuccessful.", peer_ident);
@@ -334,7 +334,7 @@ impl RaftNode {
                         );
 
                         {
-                            let mut peer_map = peer_map.deref().write().expect("could not get peer write lock");
+                            let mut peer_map = peer_map.deref().write().expect("could not get peer write lock #4");
 
                             match  peer_map.get(&peer_ident) {
                                 Some(ref p) => if p.has_peer() {
@@ -365,7 +365,7 @@ impl RaftNode {
 
                         match peer_result {
                             Ok(ref peer_ident) => {
-                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
+                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock #5");
                                 peer_map.remove(&peer_ident);
 
                                 println!("peer {:?} finished unsuccessful.", peer_ident);
@@ -373,7 +373,7 @@ impl RaftNode {
 
                             }
                             Err(ref peer_ident) if !peer_ident.is_anon()  => {
-                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock");
+                                let mut peer_map = peer_map2.deref().write().expect("could not get peer write lock #6");
                                 peer_map.remove(peer_ident);
 
                                 println!("peer {:?} finished unsuccessful.", peer_ident);
