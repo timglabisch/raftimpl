@@ -24,9 +24,11 @@ fn main() {
 
     let node_id = ::std::env::args().skip(1).next().expect("first argument required").parse::<u64>().expect("argument must be an u64");
 
+    let raftnode = RaftNode::new(node_id);
+
     let futures : Vec<Box<Future<Item=(), Error=()> + Send>> = vec![
-        Box::new(RaftNode::new(node_id)),
-        Box::new(Admin::new(node_id).run_future())
+        Box::new(Admin::new(node_id, raftnode.handle()).run_future()),
+        Box::new(raftnode),
     ];
 
     ::tokio::run(

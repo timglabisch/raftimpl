@@ -60,6 +60,7 @@ impl RaftNode {
         RaftNodeHandle {
             id: self.config.id,
             sender: self.channel_in_sender.clone(),
+            peers: self.peers.clone()
         }
     }
 
@@ -442,6 +443,7 @@ pub struct RaftNodeHandle
 {
     id: u64,
     sender: Sender<RaftNodeCommand>,
+    peers: Arc<RwLock<PeerSlotMap>>
 }
 
 impl RaftNodeHandle {
@@ -449,7 +451,13 @@ impl RaftNodeHandle {
         RaftNodeHandle {
             id: self.id,
             sender: self.sender.clone(),
+            peers: self.peers.clone()
         }
+    }
+
+    pub fn peers(&self) -> Arc<RwLock<PeerSlotMap>>
+    {
+        self.peers.clone()
     }
 
     pub fn get_id(&self) -> u64 {
