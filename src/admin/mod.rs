@@ -5,6 +5,16 @@ use hyper::Request;
 use hyper::Body;
 use hyper::Response;
 use raftnode::node::RaftNodeHandle;
+use tera::Tera;
+use tera::Context;
+
+lazy_static! {
+    pub static ref TERA: Tera = {
+        let mut tera = compile_templates!("src/templates/**/*");
+
+        tera
+    };
+}
 
 pub struct Admin {
     node_id: u64,
@@ -34,7 +44,14 @@ impl Admin {
 
                     raftnode_handle.get_id();
 
-                    Response::new(Body::from("Hello World!"))
+                    let rendered = TERA.render("foo.html", &Context::new());
+
+                    let body = match rendered {
+                        Ok(b) => b,
+                        Err(e) => format!("{:?}", e)
+                    };
+
+                    Response::new(Body::from(body))
                 })
             })
             .map_err(|e| eprintln!("server error: {}", e))
