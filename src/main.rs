@@ -14,6 +14,10 @@ extern crate hyper;
 extern crate tera;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate serde;
 
 use raftnode::node::RaftNode;
 use futures::select_all;

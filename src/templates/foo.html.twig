@@ -1,0 +1,9 @@
+<ul>
+{% for template_peer_info in template_peer_infos %}
+
+    <li>
+        peer {{ template_peer_info.peer_ident.id }} {{ template_peer_info.peer_ident.unique_identifier }}
+    </li>
+
+{% endfor %}
+</ul>

@@ -7,6 +7,8 @@ use hyper::Response;
 use raftnode::node::RaftNodeHandle;
 use tera::Tera;
 use tera::Context;
+use raftnode::peer::PeerIdent;
+use serde::Serialize;
 
 lazy_static! {
     pub static ref TERA: Tera = {
@@ -19,6 +21,11 @@ lazy_static! {
 pub struct Admin {
     node_id: u64,
     raftnode_handle: RaftNodeHandle
+}
+
+#[derive(Serialize)]
+pub struct TemplatePeerInfo {
+    peer_ident: PeerIdent
 }
 
 impl Admin {
@@ -42,16 +49,34 @@ impl Admin {
 
                 service_fn_ok(move |_: Request<Body>| {
 
-                    raftnode_handle.get_id();
+                    let template_peer_infos = {
+                        let mut buf = vec![];
+                        let read_lock = raftnode_handle.peers().clone();
+                        let peers = read_lock.read().expect("could not get read lock");
 
-                    let rendered = TERA.render("foo.html", &Context::new());
+                        for (peer_ident, _) in peers.iter() {
+                            buf.push(TemplatePeerInfo {
+                                peer_ident: peer_ident.clone()
+                            });
+                        }
+
+                        buf
+                    };
+
+
+                    let mut context = Context::new();
+                    context.insert("template_peer_infos", &template_peer_infos);
+                    let rendered = TERA.render("foo.html.twig", &context);
 
                     let body = match rendered {
                         Ok(b) => b,
                         Err(e) => format!("{:?}", e)
                     };
 
-                    Response::new(Body::from(body))
+                    Response::builder()
+                        .header("content-type", "text/html")
+                        .body(Body::from(body))
+                        .unwrap()
                 })
             })
             .map_err(|e| eprintln!("server error: {}", e))
