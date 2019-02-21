@@ -5,12 +5,20 @@ use hyper::Request;
 use hyper::Body;
 use hyper::Response;
 
-pub struct Admin;
+pub struct Admin {
+    node_id: u64
+}
 
 impl Admin {
-    pub fn new() -> impl Future<Item=(), Error=()>
+    pub fn new(node_id: u64) -> Admin
     {
-        let addr = ([127, 0, 0, 1], 3000).into();
+        Admin {
+            node_id
+        }
+    }
+
+    pub fn run_future(self) -> impl Future<Item=(), Error=()> {
+        let addr = ([127, 0, 0, 1], 3000 + self.node_id as u16).into();
 
         Server::bind(&addr)
             .serve(|| {
