@@ -12,6 +12,7 @@ byteorder = "1"
 protobuf = "2.0.4"
 rand = "*"
 hyper = "0.12.*"
+tera = "0.11"
 
 [build-dependencies]
 protoc-rust = "2.0"

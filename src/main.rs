@@ -10,6 +10,8 @@ extern crate byteorder;
 extern crate protobuf;
 extern crate rand;
 extern crate hyper;
+#[macro_use]
+extern crate tera;
 
 use raftnode::node::RaftNode;
 use futures::select_all;
